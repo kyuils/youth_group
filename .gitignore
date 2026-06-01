@@ -1,0 +1,19 @@
+# Apps Script clasp
+.clasp.json
+.clasprc.json
+gas/.clasp.json
+
+# Local
+_sheet_dump.md
+*.local
+node_modules/
+
+# Legacy reference files — kept locally for reference, not deployed
+old/
+출석부_V0.3.html
+출석부_V0.2.html
+*.xlsx
+
+# OS
+.DS_Store
+Thumbs.db
