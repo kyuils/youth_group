@@ -17,6 +17,7 @@
       --label-normal:#171719; --label-alt:rgba(55,56,60,0.61);
       --line-solid:#E1E2E4; --fill-normal:rgba(112,115,124,0.08);
       --status-positive:#00BF40; --status-cautionary:#FF9200; --status-negative:#FF4242;
+      --status-violet:#6541F2;
       --font-base:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,system-ui,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
     }
     *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -26,38 +27,143 @@
     #root{min-height:100dvh;display:flex;justify-content:center;background:var(--bg-alt)}
     .app{width:100%;max-width:460px;min-height:100dvh;background:#fff;display:flex;flex-direction:column;position:relative;box-shadow:0 0 40px rgba(0,0,0,.06)}
     @media(max-width:460px){.app{box-shadow:none;max-width:100%}}
+
     /* AppBar */
     .appbar{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.92);backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid var(--line-solid);padding:env(safe-area-inset-top) 0 0}
     .appbar-inner{height:56px;display:flex;align-items:center;padding:0 16px;gap:8px}
     .appbar-title{flex:1;display:flex;flex-direction:column;line-height:1.15}
     .appbar-title .sub{font-size:11px;color:var(--label-alt);font-weight:500}
     .appbar-title .main{font-size:17px;font-weight:600}
+
     /* Buttons */
     .btn{display:inline-flex;align-items:center;justify-content:center;height:44px;padding:0 16px;border-radius:12px;font-weight:600;font-size:15px}
     .btn.primary{background:var(--primary);color:#fff}
     .btn.ghost{background:var(--fill-normal);color:var(--label-normal)}
+    .btn.sm{height:32px;padding:0 12px;font-size:13px;border-radius:8px}
+    .btn.danger{background:rgba(255,66,66,0.1);color:var(--status-negative)}
+
     /* Login screen */
     .login{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;gap:16px;text-align:center}
     .login h1{font-size:22px;margin:0}
     .login p{color:var(--label-alt);margin:0}
-    /* Student card */
-    .student-card{padding:12px 16px;border:1px solid var(--line-solid);border-radius:14px;margin:8px 16px;display:flex;align-items:center;gap:12px}
+
+    /* Student card — V0.3 inspired with status tint */
+    .student-card{
+      padding:12px 16px;border:1px solid var(--line-solid);border-radius:14px;
+      margin:8px 16px;display:flex;align-items:center;gap:12px;
+      transition:border-color 120ms ease, background 120ms ease;
+    }
+    .student-card[data-status="P2"]{background:rgba(0,191,64,0.04);border-color:rgba(0,191,64,0.25)}
+    .student-card[data-status="P3"]{background:rgba(0,102,255,0.03);border-color:rgba(0,102,255,0.22)}
+    .student-card[data-status="P4"]{background:rgba(101,65,242,0.04);border-color:rgba(101,65,242,0.22)}
+    .student-card[data-status="ETC"]{background:rgba(255,146,0,0.04);border-color:rgba(255,146,0,0.25)}
+    .student-card[data-status="ABSENT"]{background:rgba(255,66,66,0.04);border-color:rgba(255,66,66,0.22)}
     .student-name{font-weight:600}
     .student-meta{font-size:12px;color:var(--label-alt)}
     .student-actions{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
-    .pill{padding:6px 10px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid var(--line-solid);background:#fff}
-    .pill.active.s2{background:rgba(0,191,64,.12);border-color:var(--status-positive);color:#007a29}
-    .pill.active.s3{background:rgba(0,102,255,.12);border-color:var(--primary);color:#003e99}
-    .pill.active.s4{background:rgba(101,65,242,.12);border-color:#5B37ED;color:#3d22a8}
-    .pill.active.absent{background:rgba(255,66,66,.12);border-color:var(--status-negative);color:#a30000}
+
+    /* Pill — V0.3 refined */
+    .pill{
+      padding:6px 10px;border-radius:999px;font-size:12px;font-weight:600;
+      border:1.5px solid var(--line-solid);background:#fff;
+      transition:all 120ms ease;
+    }
+    .pill:hover{background:var(--fill-normal)}
+    .pill.active.P2{background:rgba(0,191,64,.15);border-color:var(--status-positive);color:#007a29;box-shadow:0 0 0 1px rgba(0,191,64,.18)}
+    .pill.active.P3{background:rgba(0,102,255,.12);border-color:var(--primary);color:#003e99;box-shadow:0 0 0 1px rgba(0,102,255,.15)}
+    .pill.active.P4{background:rgba(101,65,242,.12);border-color:var(--status-violet);color:#3d22a8;box-shadow:0 0 0 1px rgba(101,65,242,.18)}
+    .pill.active.ETC{background:rgba(255,146,0,.12);border-color:var(--status-cautionary);color:#7a4500;box-shadow:0 0 0 1px rgba(255,146,0,.18)}
+    .pill.active.ABSENT{background:rgba(255,66,66,.12);border-color:var(--status-negative);color:#a30000;box-shadow:0 0 0 1px rgba(255,66,66,.15)}
+
+    /* Checkbox pill (progress) */
+    .check-pill{
+      display:inline-flex;align-items:center;gap:4px;
+      padding:5px 10px;border-radius:999px;font-size:12px;font-weight:600;
+      border:1.5px solid var(--line-solid);background:#fff;cursor:pointer;
+      transition:all 120ms ease;
+    }
+    .check-pill.checked{background:rgba(0,102,255,.12);border-color:var(--primary);color:#003e99}
+    .check-pill .check-icon{font-size:13px}
+
+    /* Attendance summary (V0.3 big-num) */
+    .att-summary{display:flex;align-items:baseline;gap:8px;padding:2px 0 10px}
+    .att-summary .big-num{font-size:32px;font-weight:700;color:var(--label-normal);letter-spacing:-0.02em;line-height:1}
+    .att-summary .big-num-label{font-size:13px;color:var(--label-alt);font-weight:500}
+    .att-summary .ratio{margin-left:auto;font-size:13px;font-weight:600;color:var(--primary)}
+
     /* Toast */
-    .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#171719;color:#fff;padding:10px 16px;border-radius:999px;font-size:14px;box-shadow:0 4px 24px rgba(0,0,0,.2);z-index:100}
-    /* Bottom nav */
-    .bottomnav{position:sticky;bottom:0;display:flex;border-top:1px solid var(--line-solid);background:#fff}
-    .bottomnav button{flex:1;padding:12px 0;font-size:12px;color:var(--label-alt)}
+    .toast{position:fixed;bottom:88px;left:50%;transform:translateX(-50%);background:#171719;color:#fff;padding:10px 16px;border-radius:999px;font-size:14px;box-shadow:0 4px 24px rgba(0,0,0,.2);z-index:100;white-space:nowrap}
+
+    /* Bottom nav — scrollable for 5-6 tabs */
+    .bottomnav{
+      position:sticky;bottom:0;display:flex;
+      border-top:1px solid var(--line-solid);background:#fff;
+      overflow-x:auto;-webkit-overflow-scrolling:touch;
+      padding-bottom:env(safe-area-inset-bottom);
+      scrollbar-width:none;
+    }
+    .bottomnav::-webkit-scrollbar{display:none}
+    .bottomnav button{flex:0 0 auto;min-width:64px;padding:10px 12px;font-size:11px;color:var(--label-alt);white-space:nowrap}
     .bottomnav button.active{color:var(--primary);font-weight:600}
+
     /* Loading */
     .loading{flex:1;display:flex;align-items:center;justify-content:center;color:var(--label-alt)}
+
+    /* Modal / Sheet — V0.3 inspired */
+    .sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:flex-end;z-index:50}
+    .sheet{
+      background:#fff;width:100%;max-width:460px;margin:0 auto;
+      border-top-left-radius:20px;border-top-right-radius:20px;
+      max-height:92vh;display:flex;flex-direction:column;overflow:hidden;
+    }
+    .sheet-handle{width:36px;height:4px;border-radius:2px;background:var(--line-solid);margin:10px auto 6px}
+    .sheet-header{padding:4px 20px 10px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .sheet-header h3{font-size:18px;font-weight:600;letter-spacing:-0.014em;margin:0}
+    .sheet-close{width:36px;height:36px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;color:var(--label-alt)}
+    .sheet-close:hover{background:var(--fill-normal)}
+    .sheet-body{padding:0 20px 16px;overflow-y:auto;flex:1}
+    .sheet-footer{padding:12px 20px;border-top:1px solid var(--line-solid)}
+
+    /* Form */
+    .form-row{margin-bottom:14px}
+    .form-label{font-size:13px;font-weight:600;color:var(--label-alt);margin-bottom:4px;display:block}
+    .form-input{
+      width:100%;padding:10px 12px;border:1.5px solid var(--line-solid);
+      border-radius:10px;font:inherit;font-size:15px;
+      transition:border-color 120ms ease;outline:none;
+    }
+    .form-input:focus{border-color:var(--primary)}
+    .form-select{
+      width:100%;padding:10px 12px;border:1.5px solid var(--line-solid);
+      border-radius:10px;font:inherit;font-size:15px;
+      background:#fff;outline:none;cursor:pointer;
+    }
+    .form-select:focus{border-color:var(--primary)}
+    .radio-group{display:flex;gap:12px}
+    .radio-label{display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer}
+
+    /* Section header inside views */
+    .section-head{
+      padding:12px 16px 6px;font-size:12px;font-weight:600;
+      color:var(--label-alt);letter-spacing:0.04em;text-transform:uppercase;
+    }
+
+    /* Newcomer card extra */
+    .newcomer-card{border-radius:14px;border:1px solid var(--line-solid);margin:8px 16px;overflow:hidden;transition:border-color 120ms ease}
+    .newcomer-card-top{padding:12px 14px;display:flex;align-items:center;gap:12px;transition:background 120ms ease}
+    .newcomer-card[data-status="P2"]{border-color:rgba(0,191,64,0.25)}
+    .newcomer-card[data-status="P3"]{border-color:rgba(0,102,255,0.22)}
+    .newcomer-card[data-status="P4"]{border-color:rgba(101,65,242,0.22)}
+    .newcomer-card[data-status="ETC"]{border-color:rgba(255,146,0,0.25)}
+    .newcomer-card[data-status="ABSENT"]{border-color:rgba(255,66,66,0.22)}
+    .newcomer-card-bottom{padding:8px 14px 12px;border-top:1px solid var(--fill-normal);display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+    .newcomer-footer{padding:6px 14px 10px;display:flex;gap:8px}
+
+    /* Admin view */
+    .admin-section{padding:12px 16px;border-bottom:1px solid var(--line-solid)}
+    .admin-section h4{margin:0 0 10px;font-size:14px;font-weight:600;color:var(--label-alt)}
+    .stat-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--fill-normal);font-size:14px}
+    .class-group-head{font-size:13px;font-weight:600;color:var(--primary);padding:10px 0 4px}
   </style>
 </head>
 <body>
@@ -71,7 +177,7 @@
   <script type="text/babel" data-presets="env,react" data-type="module">
     const { useState, useEffect, useCallback, useMemo, useRef } = React;
 
-    // API client — text/plain + body (Section 6.1 CORS workaround)
+    // ──────────────── API client ────────────────
     async function callApi(action, payload) {
       const body = JSON.stringify({ action, ...payload });
       const res = await fetch(window.APP_CONFIG.GAS_URL, {
@@ -81,16 +187,13 @@
       });
       if (!res.ok) throw new Error('네트워크 오류 ' + res.status);
       const json = await res.json();
-      // Auto-clear session on token expiry / invalidity so the UI returns to login screen.
       if (json && json.ok === false && (json.code === 'token_expired' || json.code === 'invalid_token')) {
         sessionStorage.removeItem('idToken');
-        // Note: cannot directly trigger React state from here; the next render after sessionStorage check on next reload will catch it.
-        // Components that get this code should treat it as a hard fail and let App's whoami flow re-evaluate.
       }
       return json;
     }
 
-    // Google Identity Services — load idToken
+    // ──────────────── Google Auth ────────────────
     function useGoogleAuth() {
       const [idToken, setIdToken] = useState(() => sessionStorage.getItem('idToken') || null);
       const [ready, setReady] = useState(false);
@@ -104,10 +207,7 @@
           if (cancelled) return;
           if (!window.google || !window.google.accounts || !window.google.accounts.id) {
             attempts++;
-            if (attempts > 50) {
-              console.warn('GIS failed to load after 5s');
-              return;
-            }
+            if (attempts > 50) { console.warn('GIS failed to load after 5s'); return; }
             timerId = setTimeout(tryInit, 100);
             return;
           }
@@ -143,6 +243,62 @@
       return { idToken, ready, containerRef, signOut };
     }
 
+    // ──────────────── Helpers ────────────────
+    function todayISO() {
+      const now = new Date();
+      const kst = new Date(now.getTime() + (9 * 60 - now.getTimezoneOffset()) * 60000);
+      const y = kst.getUTCFullYear();
+      const m = String(kst.getUTCMonth()+1).padStart(2,'0');
+      const dd = String(kst.getUTCDate()).padStart(2,'0');
+      return `${y}-${m}-${dd}`;
+    }
+
+    const STATUS_OPTIONS = [
+      { code: 'P2', label: '2부', accent: 'positive' },
+      { code: 'P3', label: '3부', accent: 'primary' },
+      { code: 'P4', label: '4부', accent: 'violet' },
+      { code: 'ETC', label: '기타', accent: 'cautionary' },
+      { code: 'ABSENT', label: '결석', accent: 'negative' },
+    ];
+
+    // present = attended a service (P2/P3/P4)
+    const PRESENT_CODES = ['P2', 'P3', 'P4'];
+
+    const TITLE_LABELS = {
+      pastor: '강도사',
+      head: '교사총무',
+      dev: '개발자',
+      newcomer_lead: '새가족부 총괄',
+    };
+
+    function roleLabel(me) {
+      const roleName =
+        me.role === 'admin' ? '관리자'
+        : me.role === 'newcomer_staff' ? '새가족부'
+        : '교사';
+      const titleName = TITLE_LABELS[me.title] || '';
+      return titleName ? `${roleName} · ${titleName}` : roleName;
+    }
+
+    // ──────────────── Toast ────────────────
+    function Toast({ msg }) {
+      if (!msg) return null;
+      return <div className="toast">{msg}</div>;
+    }
+
+    function useToast() {
+      const [msg, setMsg] = useState(null);
+      const timerRef = useRef(null);
+      const show = useCallback((m) => {
+        setMsg(m);
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => setMsg(null), 2200);
+      }, []);
+      useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+      return React.useMemo(() => ({ msg, show }), [msg, show]);
+    }
+
+    // ──────────────── Login / Error screens ────────────────
     function LoginScreen({ containerRef }) {
       return (
         <div className="login">
@@ -153,7 +309,7 @@
       );
     }
 
-    function UnauthorizedScreen({ email, onRetry, onSignOut }) {
+    function UnauthorizedScreen({ email, onSignOut }) {
       return (
         <div className="login">
           <h1>접근 권한이 없어요</h1>
@@ -164,9 +320,11 @@
       );
     }
 
+    // ──────────────── App (top-level) ────────────────
     function App() {
       const auth = useGoogleAuth();
-      const [me, setMe] = useState(null); // { email, teacher, role }
+      // me = { email, teacher, role, title, permissions }
+      const [me, setMe] = useState(null);
       const [authError, setAuthError] = useState(null);
 
       useEffect(() => {
@@ -175,16 +333,24 @@
         callApi('whoami', { idToken: auth.idToken })
           .then((r) => {
             if (aborted) return;
-            if (r.ok) { setMe({ email: r.email, teacher: r.teacher, role: r.role }); setAuthError(null); }
-            else if (r.code === 'unauthorized') {
+            if (r.ok) {
+              setMe({
+                email: r.email,
+                teacher: r.teacher,
+                role: r.role || 'teacher',
+                // title may come top-level or nested; defensive read
+                title: r.title || (typeof r.teacher === 'object' && r.teacher && r.teacher.title) || '',
+                permissions: r.permissions || [],
+              });
+              setAuthError(null);
+            } else if (r.code === 'unauthorized') {
               setAuthError({ code: 'unauthorized', email: r.email }); setMe(null);
-            }
-            else if (r.code === 'token_expired' || r.code === 'invalid_token' || r.code === 'aud_mismatch' || r.code === 'iss_mismatch' || r.code === 'email_unverified') {
-              // Token problem — clear session and prompt re-login
+            } else if (r.code === 'token_expired' || r.code === 'invalid_token' || r.code === 'aud_mismatch' || r.code === 'iss_mismatch' || r.code === 'email_unverified') {
               sessionStorage.removeItem('idToken');
               auth.signOut();
+            } else {
+              setAuthError({ code: r.code || 'unknown' }); setMe(null);
             }
-            else { setAuthError({ code: r.code || 'unknown' }); setMe(null); }
           })
           .catch((e) => { if (!aborted) setAuthError({ code: 'network', message: e.message }); });
         return () => { aborted = true; };
@@ -203,7 +369,12 @@
                 <p>네트워크 또는 서버(GAS) 설정 문제일 수 있습니다.</p>
                 <p style={{fontSize:12,color:'var(--label-alt)'}}>오류 코드: {authError.code}{authError.message ? ' · ' + authError.message : ''}</p>
                 <div style={{display:'flex',gap:8,marginTop:8}}>
-                  <button className="btn ghost" onClick={() => { setAuthError(null); /* trigger re-fetch */ const t = auth.idToken; auth.signOut(); setTimeout(() => { sessionStorage.setItem('idToken', t); window.location.reload(); }, 50); }}>다시 시도</button>
+                  <button className="btn ghost" onClick={() => {
+                    setAuthError(null);
+                    const t = auth.idToken;
+                    auth.signOut();
+                    setTimeout(() => { sessionStorage.setItem('idToken', t); window.location.reload(); }, 50);
+                  }}>다시 시도</button>
                   <button className="btn ghost" onClick={auth.signOut}>로그아웃</button>
                 </div>
               </div>
@@ -216,49 +387,62 @@
       return <Shell me={me} idToken={auth.idToken} onSignOut={auth.signOut} />;
     }
 
-    // ──────────────── Toast ────────────────
+    // ──────────────── Shell ────────────────
+    function Shell({ me, idToken, onSignOut }) {
+      // Admin with no class (e.g. 김지헌 pastor) defaults to admin tab per spec §9
+      const [tab, setTab] = useState(() =>
+        (!me.teacher && me.permissions.includes('read_all')) ? 'admin' : 'roster'
+      );
+      const [date, setDate] = useState(todayISO());
+      const [detailId, setDetailId] = useState(null);
+      const toast = useToast();
 
-    function Toast({ msg }) {
-      if (!msg) return null;
-      return <div className="toast">{msg}</div>;
+      const TABS = useMemo(() => {
+        const base = [['roster','출석'],['prayer','기도제목'],['records','기록'],['stats','통계']];
+        const extra = [];
+        if (me.permissions.includes('write_newcomer')) extra.push(['newcomers','새가족부']);
+        if (me.permissions.includes('read_all')) extra.push(['admin','관리자']);
+        return [...base, ...extra];
+      }, [me.permissions]);
+
+      // If current tab disappeared after permission change, reset
+      const validTab = TABS.some(([k]) => k === tab) ? tab : 'roster';
+
+      return (
+        <div className="app">
+          <div className="appbar">
+            <div className="appbar-inner">
+              <div className="appbar-title">
+                <div className="sub">청소년부 · {roleLabel(me)}</div>
+                <div className="main">{me.teacher ? me.teacher + ' 반' : me.email}</div>
+              </div>
+              <button className="btn ghost" onClick={onSignOut} style={{height:36,fontSize:13}}>로그아웃</button>
+            </div>
+          </div>
+
+          {validTab === 'roster'    && <RosterView    idToken={idToken} me={me} date={date} onChangeDate={setDate} toast={toast} onOpenDetail={setDetailId} />}
+          {validTab === 'prayer'    && <PrayerView    idToken={idToken} toast={toast} />}
+          {validTab === 'records'   && <RecordsView   idToken={idToken} toast={toast} me={me} />}
+          {validTab === 'stats'     && <StatsView     idToken={idToken} toast={toast} />}
+          {validTab === 'newcomers' && <NewcomersView idToken={idToken} toast={toast} />}
+          {validTab === 'admin'     && <AdminView     idToken={idToken} toast={toast} me={me} />}
+
+          <div className="bottomnav">
+            {TABS.map(([k, label]) => (
+              <button key={k} className={validTab === k ? 'active' : ''} onClick={() => setTab(k)}>{label}</button>
+            ))}
+          </div>
+
+          {detailId && <StudentDetail idToken={idToken} studentId={detailId} onClose={() => setDetailId(null)} toast={toast} />}
+          <Toast msg={toast.msg} />
+        </div>
+      );
     }
-
-    function useToast() {
-      const [msg, setMsg] = useState(null);
-      const timerRef = useRef(null);
-      const show = useCallback((m) => {
-        setMsg(m);
-        if (timerRef.current) clearTimeout(timerRef.current);
-        timerRef.current = setTimeout(() => setMsg(null), 2200);
-      }, []);
-      useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
-      return React.useMemo(() => ({ msg, show }), [msg, show]);
-    }
-
-    // ──────────────── Helpers ────────────────
-
-    function todayISO() {
-      // KST (UTC+9) fixed regardless of device timezone.
-      const now = new Date();
-      const kst = new Date(now.getTime() + (9 * 60 - now.getTimezoneOffset()) * 60000);
-      const y = kst.getUTCFullYear();
-      const m = String(kst.getUTCMonth()+1).padStart(2,'0');
-      const dd = String(kst.getUTCDate()).padStart(2,'0');
-      return `${y}-${m}-${dd}`;
-    }
-
-    const STATUS_OPTIONS = [
-      { code: 's2', label: '출석' },
-      { code: 's3', label: '온라인' },
-      { code: 's4', label: '늦음' },
-      { code: 'absent', label: '결석' },
-    ];
 
     // ──────────────── RosterView ────────────────
-
     function RosterView({ idToken, me, date, onChangeDate, toast, onOpenDetail }) {
       const [students, setStudents] = useState(null);
-      const [att, setAtt] = useState({}); // { 'YYYY-MM-DD|studentId': 'sX' }
+      const [att, setAtt] = useState({});
       const [loading, setLoading] = useState(true);
 
       useEffect(() => {
@@ -270,25 +454,29 @@
         ]).then(([r, a]) => {
           if (aborted) return;
           if (!r.ok) { toast.show('명단 불러오기 실패'); setLoading(false); return; }
-          if (!a.ok) { toast.show('출석 기록 불러오기 실패'); }
+          if (!a.ok) toast.show('출석 기록 불러오기 실패');
           setStudents(r.students);
           const map = {};
           (a.rows || []).forEach((row) => { map[row.date + '|' + row.studentId] = row.status; });
           setAtt(map);
           setLoading(false);
-        }).catch((e) => { if (!aborted) { toast.show('네트워크 오류'); setLoading(false); } });
+        }).catch(() => { if (!aborted) { toast.show('네트워크 오류'); setLoading(false); } });
         return () => { aborted = true; };
       }, [idToken, toast.show]);
 
       const setStatus = (studentId, status) => {
+        let etcText = null;
+        if (status === 'ETC') {
+          etcText = window.prompt('기타 사유를 입력하세요 (예: 결방, 가족여행, 병원 등)');
+          if (etcText === null) return; // 취소
+        }
         const key = date + '|' + studentId;
         let prev;
         setAtt((m) => { prev = m[key]; return { ...m, [key]: status }; });
-        callApi('setAttendance', { idToken, date, studentId, status })
+        callApi('setAttendance', { idToken, date, studentId, status, etcText })
           .then((r) => {
             if (!r.ok) {
               setAtt((m) => {
-                // Only roll back if our optimistic value is still current (not overwritten by a later successful click)
                 if (m[key] !== status) return m;
                 const next = { ...m };
                 if (prev !== undefined) next[key] = prev; else delete next[key];
@@ -321,7 +509,7 @@
           {students.map((s) => {
             const cur = att[date + '|' + s.id];
             return (
-              <div className="student-card" key={s.id}>
+              <div className="student-card" key={s.id} data-status={cur || undefined}>
                 <div>
                   <button className="student-name" onClick={() => onOpenDetail(s.id)} style={{textAlign:'left'}}>{s['이름']}</button>
                   <div className="student-meta">{s['학년']} · {s['성별']}</div>
@@ -341,11 +529,10 @@
     }
 
     // ──────────────── PrayerView ────────────────
-
     function PrayerView({ idToken, toast }) {
       const [prayers, setPrayers] = useState(null);
       const [students, setStudents] = useState([]);
-      const [editing, setEditing] = useState(null); // { id?, studentId, text }
+      const [editing, setEditing] = useState(null);
       const [loading, setLoading] = useState(true);
 
       const reload = useCallback(() => {
@@ -396,7 +583,7 @@
             <div key={s.id} style={{padding:'12px 16px',borderBottom:'1px solid var(--line-solid)'}}>
               <div style={{display:'flex',alignItems:'center'}}>
                 <div className="student-name">{s['이름']}</div>
-                <button className="btn ghost" aria-label={`${s['이름']} 기도제목 추가`} style={{marginLeft:'auto',height:32,padding:'0 12px'}}
+                <button className="btn ghost sm" aria-label={`${s['이름']} 기도제목 추가`} style={{marginLeft:'auto'}}
                   onClick={() => setEditing({ studentId: s.id, text: '' })}>＋</button>
               </div>
               {(byStudent[s.id] || []).map((p) => (
@@ -409,12 +596,15 @@
             </div>
           ))}
           {editing && (
-            <div role="dialog" aria-modal="true" style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',display:'flex',alignItems:'flex-end',zIndex:50}} onClick={() => setEditing(null)}>
-              <div style={{background:'#fff',width:'100%',maxWidth:460,margin:'0 auto',padding:16,borderTopLeftRadius:16,borderTopRightRadius:16}} onClick={(e)=>e.stopPropagation()}>
-                <h3 style={{margin:'0 0 12px'}}>기도제목</h3>
-                <textarea value={editing.text} onChange={(e) => setEditing({ ...editing, text: e.target.value })}
-                  rows={4} style={{width:'100%',padding:10,border:'1px solid var(--line-solid)',borderRadius:10,font:'inherit'}} />
-                <div style={{display:'flex',gap:8,marginTop:12}}>
+            <div className="sheet-overlay" onClick={() => setEditing(null)}>
+              <div className="sheet" onClick={(e) => e.stopPropagation()}>
+                <div className="sheet-handle" />
+                <div className="sheet-header"><h3>기도제목</h3></div>
+                <div className="sheet-body">
+                  <textarea value={editing.text} onChange={(e) => setEditing({ ...editing, text: e.target.value })}
+                    rows={4} style={{width:'100%',padding:10,border:'1.5px solid var(--line-solid)',borderRadius:10,font:'inherit'}} />
+                </div>
+                <div className="sheet-footer" style={{display:'flex',gap:8}}>
                   <button className="btn ghost" style={{flex:1}} onClick={() => setEditing(null)}>취소</button>
                   <button className="btn primary" style={{flex:1}} onClick={save}>저장</button>
                 </div>
@@ -426,12 +616,14 @@
     }
 
     // ──────────────── RecordsView ────────────────
-
     function RecordsView({ idToken, toast, me }) {
       const [data, setData] = useState(null);
       useEffect(() => {
         Promise.all([callApi('getRoster',{idToken}), callApi('getAttendance',{idToken, year: new Date().getFullYear()})])
-          .then(([r,a]) => { if (r.ok && a.ok) setData({ students: r.students, rows: a.rows }); else toast.show('불러오기 실패'); })
+          .then(([r,a]) => {
+            if (r.ok && a.ok) setData({ students: r.students, rows: a.rows });
+            else toast.show('불러오기 실패');
+          })
           .catch(() => toast.show('네트워크 오류'));
       }, [idToken, toast.show]);
       if (!data) return <div className="loading">불러오는 중…</div>;
@@ -457,7 +649,6 @@
     }
 
     // ──────────────── StatsView ────────────────
-
     function StatsView({ idToken, toast }) {
       const [data, setData] = useState(null);
       useEffect(() => {
@@ -466,24 +657,28 @@
           .catch(() => toast.show('네트워크 오류'));
       }, [idToken, toast.show]);
       if (!data) return <div className="loading">불러오는 중…</div>;
-      if (!data || data.students.length === 0) return <div className="loading">학생이 없습니다.</div>;
+      if (!data.students || data.students.length === 0) return <div className="loading">학생이 없습니다.</div>;
       const dates = Array.from(new Set(data.rows.map((r) => r.date)));
-      if (dates.length === 0) {
-        return <div className="loading">올해 출석 기록이 아직 없습니다.</div>;
-      }
+      if (dates.length === 0) return <div className="loading">올해 출석 기록이 아직 없습니다.</div>;
+
       return (
         <>
           <div style={{padding:'12px 16px',fontSize:13,color:'var(--label-alt)'}}>올해 예배 횟수: {dates.length}회</div>
           {data.students.map((s) => {
             const mine = data.rows.filter((r) => r.studentId === s.id);
-            const present = mine.filter((r) => r.status === 's2').length;
+            // present = attended any service (P2/P3/P4), excludes ETC/ABSENT
+            const present = mine.filter((r) => PRESENT_CODES.includes(r.status)).length;
             const total = dates.length;
             const pct = total > 0 ? Math.round((present / total) * 100) : 0;
             return (
               <div key={s.id} className="student-card">
                 <div style={{flex:1}}>
                   <div className="student-name">{s['이름']}</div>
-                  <div className="student-meta">출석 {present} / {total}회 ({pct}%)</div>
+                  <div className="att-summary">
+                    <span className="big-num">{present}</span>
+                    <span className="big-num-label">/ {total}회</span>
+                    <span className="ratio">{pct}%</span>
+                  </div>
                 </div>
               </div>
             );
@@ -493,7 +688,6 @@
     }
 
     // ──────────────── StudentDetail ────────────────
-
     function StudentDetail({ idToken, studentId, onClose, toast }) {
       const [detail, setDetail] = useState(null);
       const [error, setError] = useState(null);
@@ -512,7 +706,6 @@
         return () => { aborted = true; };
       }, [idToken, studentId, toast.show]);
 
-      // Close on ESC
       useEffect(() => {
         const onKey = (e) => { if (e.key === 'Escape') onClose(); };
         window.addEventListener('keydown', onKey);
@@ -520,26 +713,35 @@
       }, [onClose]);
 
       return (
-        <div role="dialog" aria-modal="true" style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',display:'flex',alignItems:'flex-end',zIndex:50}} onClick={onClose}>
-          <div style={{background:'#fff',width:'100%',maxWidth:460,margin:'0 auto',padding:16,borderTopLeftRadius:16,borderTopRightRadius:16,maxHeight:'85vh',overflow:'auto'}} onClick={(e)=>e.stopPropagation()}>
+        <div className="sheet-overlay" onClick={onClose}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="sheet-handle" />
             {error ? (
               <>
-                <h3 style={{margin:'0 0 12px'}}>불러올 수 없어요</h3>
-                <p style={{color:'var(--label-alt)'}}>네트워크나 권한 문제일 수 있어요.</p>
-                <button className="btn ghost" style={{width:'100%',marginTop:12}} onClick={onClose}>닫기</button>
+                <div className="sheet-header"><h3>불러올 수 없어요</h3></div>
+                <div className="sheet-body">
+                  <p style={{color:'var(--label-alt)'}}>네트워크나 권한 문제일 수 있어요.</p>
+                </div>
+                <div className="sheet-footer">
+                  <button className="btn ghost" style={{width:'100%'}} onClick={onClose}>닫기</button>
+                </div>
               </>
-            ) : !detail ? <div className="loading">불러오는 중…</div> : (
+            ) : !detail ? <div className="loading" style={{padding:40}}>불러오는 중…</div> : (
               <>
-                <h3 style={{margin:'0 0 12px'}}>{detail['이름']}</h3>
-                {['학년','성별','생년월일','연락처','학교','초등학교','신급','부/모','부모님연락처','주소','비고']
-                  .filter((k) => detail[k])
-                  .map((k) => (
-                    <div key={k} style={{display:'flex',padding:'6px 0',borderBottom:'1px solid var(--fill-normal)'}}>
-                      <div style={{width:90,color:'var(--label-alt)',fontSize:13}}>{k}</div>
-                      <div style={{flex:1,fontSize:14}}>{detail[k]}</div>
-                    </div>
-                  ))}
-                <button className="btn ghost" style={{width:'100%',marginTop:12}} onClick={onClose}>닫기</button>
+                <div className="sheet-header"><h3>{detail['이름']}</h3></div>
+                <div className="sheet-body">
+                  {['학년','성별','생년월일','연락처','학교','초등학교','신급','부/모','부모님연락처','주소','비고']
+                    .filter((k) => detail[k])
+                    .map((k) => (
+                      <div key={k} style={{display:'flex',padding:'6px 0',borderBottom:'1px solid var(--fill-normal)'}}>
+                        <div style={{width:90,color:'var(--label-alt)',fontSize:13,flexShrink:0}}>{k}</div>
+                        <div style={{flex:1,fontSize:14}}>{detail[k]}</div>
+                      </div>
+                    ))}
+                </div>
+                <div className="sheet-footer">
+                  <button className="btn ghost" style={{width:'100%'}} onClick={onClose}>닫기</button>
+                </div>
               </>
             )}
           </div>
@@ -547,36 +749,418 @@
       );
     }
 
-    // ──────────────── Shell ────────────────
+    // ──────────────── NewcomersView ────────────────
+    function NewcomersView({ idToken, toast }) {
+      const [data, setData] = useState(null); // { students, progress }
+      const [loading, setLoading] = useState(true);
+      const [showForm, setShowForm] = useState(false);
+      const [graduateTarget, setGraduateTarget] = useState(null); // student object
 
-    function Shell({ me, idToken, onSignOut }) {
-      const [tab, setTab] = useState('roster');
-      const [date, setDate] = useState(todayISO());
-      const [detailId, setDetailId] = useState(null);
-      const toast = useToast();
+      const reload = useCallback(() => {
+        setLoading(true);
+        callApi('getNewcomers', { idToken })
+          .then((r) => {
+            if (r.ok) setData({ students: r.students, progress: r.progress || {} });
+            else toast.show('새가족 명단 불러오기 실패: ' + (r.code || ''));
+            setLoading(false);
+          })
+          .catch(() => { toast.show('네트워크 오류'); setLoading(false); });
+      }, [idToken, toast.show]);
+
+      useEffect(reload, [reload]);
+
+      const todayDate = todayISO();
+
+      const setAttendance = (studentId, status) => {
+        let etcText = null;
+        if (status === 'ETC') {
+          etcText = window.prompt('기타 사유를 입력하세요');
+          if (etcText === null) return;
+        }
+        callApi('setAttendance', { idToken, date: todayDate, studentId, status, etcText })
+          .then((r) => {
+            if (r.ok) reload();
+            else toast.show('저장 실패: ' + (r.code || ''));
+          })
+          .catch(() => toast.show('네트워크 오류'));
+      };
+
+      const toggleProgress = (studentId, week, current) => {
+        const completed = !current;
+        callApi('setNewcomerProgress', { idToken, studentId, week, completed })
+          .then((r) => {
+            if (r.ok) reload();
+            else toast.show('진도 저장 실패');
+          })
+          .catch(() => toast.show('네트워크 오류'));
+      };
+
+      if (loading) return <div className="loading">불러오는 중…</div>;
+
+      const students = (data && data.students) || [];
+      const progress = (data && data.progress) || {};
+      // progress keyed by studentId → { '1주': bool, '2주': bool, '3주': bool, '4주': bool }
+
       return (
-        <div className="app">
-          <div className="appbar">
-            <div className="appbar-inner">
-              <div className="appbar-title">
-                <div className="sub">청소년부 · {me.email}</div>
-                <div className="main">{me.teacher} 반</div>
+        <>
+          <div style={{padding:'12px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+            <div style={{fontSize:14,color:'var(--label-alt)'}}>{students.length}명의 새가족</div>
+            <button className="btn primary sm" onClick={() => setShowForm(true)}>＋ 새가족 추가</button>
+          </div>
+
+          {students.length === 0 && <div className="loading">새가족이 없습니다.</div>}
+
+          {students.map((s) => {
+            const prog = progress[s.id] || {};
+            // today's attendance
+            const todayAtt = s.todayStatus || null;
+            return (
+              <div className="newcomer-card" key={s.id} data-status={todayAtt || undefined}>
+                <div className="newcomer-card-top">
+                  <div style={{flex:1}}>
+                    <div className="student-name">{s['이름']}</div>
+                    <div className="student-meta">{s['학년']} · {s['성별']}</div>
+                  </div>
+                  <button className="btn danger sm" onClick={() => setGraduateTarget(s)}>등반</button>
+                </div>
+                <div className="newcomer-card-bottom">
+                  <div style={{fontSize:11,color:'var(--label-alt)',fontWeight:600,marginRight:4}}>출석</div>
+                  {STATUS_OPTIONS.map((opt) => (
+                    <button key={opt.code}
+                      className={'pill ' + (todayAtt === opt.code ? 'active ' + opt.code : '')}
+                      style={{fontSize:11,padding:'4px 8px'}}
+                      onClick={() => setAttendance(s.id, opt.code)}>{opt.label}</button>
+                  ))}
+                </div>
+                <div className="newcomer-card-bottom" style={{borderTop:'none',paddingTop:0}}>
+                  <div style={{fontSize:11,color:'var(--label-alt)',fontWeight:600,marginRight:4}}>교육</div>
+                  {[1,2,3,4].map((w) => {
+                    const key = `${w}주`;
+                    const checked = !!prog[key];
+                    return (
+                      <button key={w}
+                        className={'check-pill' + (checked ? ' checked' : '')}
+                        onClick={() => toggleProgress(s.id, w, checked)}>
+                        <span className="check-icon">{checked ? '✓' : '○'}</span>
+                        {w}주
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <button className="btn ghost" onClick={onSignOut} style={{height:36}}>로그아웃</button>
+            );
+          })}
+
+          {showForm && (
+            <NewcomerForm
+              idToken={idToken}
+              toast={toast}
+              onClose={() => setShowForm(false)}
+              onSuccess={() => { setShowForm(false); reload(); }}
+            />
+          )}
+
+          {graduateTarget && (
+            <GraduateDialog
+              idToken={idToken}
+              toast={toast}
+              student={graduateTarget}
+              onClose={() => setGraduateTarget(null)}
+              onSuccess={() => { setGraduateTarget(null); reload(); }}
+            />
+          )}
+        </>
+      );
+    }
+
+    // ──────────────── NewcomerForm ────────────────
+    function NewcomerForm({ idToken, toast, onClose, onSuccess }) {
+      const [form, setForm] = useState({
+        name: '', gender: '남', phone: '', birthDate: '', grade: '',
+        school: '', parentPhone: '', address: '', note: '',
+      });
+      const [saving, setSaving] = useState(false);
+
+      const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+      const submit = () => {
+        if (!form.name.trim()) { toast.show('이름을 입력하세요'); return; }
+        setSaving(true);
+        callApi('addNewcomer', {
+          idToken,
+          name: form.name.trim(),
+          gender: form.gender,
+          phone: form.phone,
+          birthDate: form.birthDate,
+          grade: form.grade,
+          school: form.school,
+          address: form.address,
+          note: form.note,
+        })
+          .then((r) => {
+            setSaving(false);
+            if (r.ok) { toast.show('새가족이 추가됐습니다'); onSuccess(); }
+            else toast.show('추가 실패: ' + (r.code || ''));
+          })
+          .catch(() => { setSaving(false); toast.show('네트워크 오류'); });
+      };
+
+      useEffect(() => {
+        const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+      }, [onClose]);
+
+      return (
+        <div className="sheet-overlay" onClick={onClose}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="sheet-handle" />
+            <div className="sheet-header">
+              <h3>새가족 추가</h3>
+              <button className="sheet-close" onClick={onClose}>✕</button>
+            </div>
+            <div className="sheet-body">
+              <div className="form-row">
+                <label className="form-label">이름 *</label>
+                <input className="form-input" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="홍길동" />
+              </div>
+              <div className="form-row">
+                <label className="form-label">성별</label>
+                <div className="radio-group">
+                  {['남','여'].map((g) => (
+                    <label key={g} className="radio-label">
+                      <input type="radio" name="gender" value={g} checked={form.gender === g} onChange={() => set('gender', g)} />
+                      {g}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="form-row">
+                <label className="form-label">학년</label>
+                <select className="form-select" value={form.grade} onChange={(e) => set('grade', e.target.value)}>
+                  <option value="">선택</option>
+                  {['중1','중2','중3','고1','고2','고3'].map((g) => <option key={g} value={g}>{g}</option>)}
+                </select>
+              </div>
+              <div className="form-row">
+                <label className="form-label">연락처</label>
+                <input className="form-input" value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="010-0000-0000" />
+              </div>
+              <div className="form-row">
+                <label className="form-label">생년월일</label>
+                <input type="date" className="form-input" value={form.birthDate} onChange={(e) => set('birthDate', e.target.value)} />
+              </div>
+              <div className="form-row">
+                <label className="form-label">학교</label>
+                <input className="form-input" value={form.school} onChange={(e) => set('school', e.target.value)} placeholder="○○중학교" />
+              </div>
+              <div className="form-row">
+                <label className="form-label">부모님 연락처</label>
+                <input className="form-input" value={form.parentPhone} onChange={(e) => set('parentPhone', e.target.value)} placeholder="010-0000-0000" />
+              </div>
+              <div className="form-row">
+                <label className="form-label">주소</label>
+                <input className="form-input" value={form.address} onChange={(e) => set('address', e.target.value)} />
+              </div>
+              <div className="form-row">
+                <label className="form-label">비고</label>
+                <input className="form-input" value={form.note} onChange={(e) => set('note', e.target.value)} />
+              </div>
+            </div>
+            <div className="sheet-footer" style={{display:'flex',gap:8}}>
+              <button className="btn ghost" style={{flex:1}} onClick={onClose} disabled={saving}>취소</button>
+              <button className="btn primary" style={{flex:1}} onClick={submit} disabled={saving}>
+                {saving ? '저장 중…' : '저장'}
+              </button>
             </div>
           </div>
-          {tab === 'roster' && <RosterView idToken={idToken} me={me} date={date} onChangeDate={setDate} toast={toast} onOpenDetail={setDetailId} />}
-          {tab === 'prayer' && <PrayerView idToken={idToken} toast={toast} />}
-          {tab === 'records' && <RecordsView idToken={idToken} toast={toast} me={me} />}
-          {tab === 'stats' && <StatsView idToken={idToken} toast={toast} />}
-          <div className="bottomnav">
-            {[['roster','출석'],['prayer','기도제목'],['records','기록'],['stats','통계']].map(([k,label]) => (
-              <button key={k} className={tab===k?'active':''} onClick={() => setTab(k)}>{label}</button>
-            ))}
-          </div>
-          {detailId && <StudentDetail idToken={idToken} studentId={detailId} onClose={() => setDetailId(null)} toast={toast} />}
-          <Toast msg={toast.msg} />
         </div>
+      );
+    }
+
+    // ──────────────── GraduateDialog ────────────────
+    function GraduateDialog({ idToken, toast, student, onClose, onSuccess }) {
+      const [targetTeacher, setTargetTeacher] = useState('');
+      const [teachers, setTeachers] = useState(null);
+      const [saving, setSaving] = useState(false);
+
+      // Try to fetch teacher list from getAllRosters; fall back to free text if not authorized
+      useEffect(() => {
+        callApi('getAllRosters', { idToken })
+          .then((r) => {
+            if (r.ok && r.byClass) {
+              setTeachers(Object.keys(r.byClass).filter(Boolean));
+            } else {
+              setTeachers([]); // will show free-text fallback
+            }
+          })
+          .catch(() => setTeachers([]));
+      }, [idToken]);
+
+      const confirm_ = () => {
+        if (!targetTeacher.trim()) { toast.show('반을 선택해 주세요'); return; }
+        setSaving(true);
+        callApi('graduate', { idToken, studentId: student.id, targetTeacher: targetTeacher.trim() })
+          .then((r) => {
+            setSaving(false);
+            if (r.ok) { toast.show(student['이름'] + ' 등반 완료'); onSuccess(); }
+            else toast.show('등반 실패: ' + (r.code || ''));
+          })
+          .catch(() => { setSaving(false); toast.show('네트워크 오류'); });
+      };
+
+      useEffect(() => {
+        const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+      }, [onClose]);
+
+      return (
+        <div className="sheet-overlay" onClick={onClose}>
+          <div className="sheet" style={{maxHeight:'50vh'}} onClick={(e) => e.stopPropagation()}>
+            <div className="sheet-handle" />
+            <div className="sheet-header"><h3>{student['이름']} 등반</h3></div>
+            <div className="sheet-body">
+              <p style={{fontSize:14,color:'var(--label-alt)',margin:'0 0 16px'}}>이동할 반(교사)을 선택하세요.</p>
+              {teachers === null ? (
+                <div style={{color:'var(--label-alt)',fontSize:14}}>불러오는 중…</div>
+              ) : teachers.length > 0 ? (
+                <select className="form-select" value={targetTeacher} onChange={(e) => setTargetTeacher(e.target.value)}>
+                  <option value="">반 선택</option>
+                  {teachers.map((t) => <option key={t} value={t}>{t} 반</option>)}
+                </select>
+              ) : (
+                <input
+                  className="form-input"
+                  value={targetTeacher}
+                  onChange={(e) => setTargetTeacher(e.target.value)}
+                  placeholder="교사 이름 직접 입력"
+                />
+              )}
+            </div>
+            <div className="sheet-footer" style={{display:'flex',gap:8}}>
+              <button className="btn ghost" style={{flex:1}} onClick={onClose} disabled={saving}>취소</button>
+              <button className="btn primary" style={{flex:1}} onClick={confirm_} disabled={saving || !targetTeacher.trim()}>
+                {saving ? '처리 중…' : '등반 확정'}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ──────────────── AdminView ────────────────
+    function AdminView({ idToken, toast, me }) {
+      const [classFilter, setClassFilter] = useState(''); // '' = all
+      const [rosters, setRosters] = useState(null);   // { byClass: { teacher: [students] } }
+      const [allAtt, setAllAtt] = useState(null);     // { rows: [...] }
+      const [allPrayers, setAllPrayers] = useState(null); // { prayers: [...] }
+      const [loading, setLoading] = useState(true);
+
+      useEffect(() => {
+        setLoading(true);
+        const year = new Date().getFullYear();
+        Promise.all([
+          callApi('getAllRosters', { idToken }),
+          callApi('getAllAttendance', { idToken, year }),
+          callApi('getAllPrayers', { idToken }),
+        ]).then(([r, a, p]) => {
+          if (r.ok) setRosters(r);
+          else toast.show('명단 불러오기 실패');
+          if (a.ok) setAllAtt(a);
+          if (p.ok) setAllPrayers(p);
+          setLoading(false);
+        }).catch(() => { toast.show('네트워크 오류'); setLoading(false); });
+      }, [idToken, toast.show]);
+
+      if (loading) return <div className="loading">불러오는 중…</div>;
+
+      const byClass = (rosters && rosters.byClass) || {};
+      const classNames = Object.keys(byClass).sort();
+
+      const displayClasses = classFilter ? [classFilter] : classNames;
+
+      // Attendance stats per class
+      const attRows = (allAtt && allAtt.rows) || [];
+      const allDates = Array.from(new Set(attRows.map((r) => r.date)));
+
+      // Prayers grouped by class (via student's 반)
+      const prayerList = (allPrayers && allPrayers.prayers) || [];
+      // Build studentId → 반 map from rosters
+      const studentClass = {};
+      classNames.forEach((cls) => {
+        (byClass[cls] || []).forEach((s) => { studentClass[s.id] = cls; });
+      });
+
+      return (
+        <>
+          <div style={{padding:'12px 16px'}}>
+            <label style={{fontSize:13,fontWeight:600,color:'var(--label-alt)',display:'block',marginBottom:6}}>반 선택</label>
+            <select className="form-select" value={classFilter} onChange={(e) => setClassFilter(e.target.value)}>
+              <option value="">전체 반</option>
+              {classNames.map((c) => <option key={c} value={c}>{c} 반</option>)}
+            </select>
+          </div>
+
+          {/* Attendance stats */}
+          <div className="admin-section">
+            <h4>출석 통계 (올해 {allDates.length}회)</h4>
+            {displayClasses.map((cls) => {
+              const students = byClass[cls] || [];
+              if (students.length === 0) return null;
+              const clsRows = attRows.filter((r) => studentClass[r.studentId] === cls);
+              const present = clsRows.filter((r) => PRESENT_CODES.includes(r.status)).length;
+              const total = students.length * allDates.length;
+              const pct = total > 0 ? Math.round((present / total) * 100) : 0;
+              return (
+                <div key={cls} className="stat-row">
+                  <span>{cls} 반 ({students.length}명)</span>
+                  <span style={{fontWeight:600}}>{present} / {total} <span style={{color:'var(--primary)'}}>{pct}%</span></span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Student roster */}
+          <div className="admin-section">
+            <h4>학생 명단</h4>
+            {displayClasses.map((cls) => {
+              const students = byClass[cls] || [];
+              return (
+                <div key={cls} style={{marginBottom:12}}>
+                  <div className="class-group-head">{cls} 반</div>
+                  {students.map((s) => (
+                    <div key={s.id} style={{fontSize:14,padding:'4px 0',borderBottom:'1px solid var(--fill-normal)',display:'flex',gap:8}}>
+                      <span style={{flex:1,fontWeight:500}}>{s['이름']}</span>
+                      <span style={{color:'var(--label-alt)',fontSize:12}}>{s['학년']} · {s['성별']}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Prayers grouped by class */}
+          <div className="admin-section">
+            <h4>기도제목</h4>
+            {displayClasses.map((cls) => {
+              const clsPrayers = prayerList.filter((p) => studentClass[p.studentId] === cls);
+              if (clsPrayers.length === 0) return null;
+              return (
+                <div key={cls} style={{marginBottom:12}}>
+                  <div className="class-group-head">{cls} 반</div>
+                  {clsPrayers.map((p) => (
+                    <div key={p.id} style={{padding:'6px 0',borderBottom:'1px solid var(--fill-normal)',fontSize:14}}>
+                      <span style={{fontWeight:500}}>{p.studentName || p.studentId}</span>
+                      <span style={{color:'var(--label-alt)',marginLeft:8}}>— {p.text}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+            {prayerList.length === 0 && <div style={{fontSize:14,color:'var(--label-alt)'}}>기도제목이 없습니다.</div>}
+          </div>
+        </>
       );
     }
 

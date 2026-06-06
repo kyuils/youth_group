@@ -37,11 +37,32 @@ function verifyIdToken(idToken) {
   return { ok: true, email: String(info.email).toLowerCase().trim(), name: info.name || '' };
 }
 
-// authenticate(body) → { ok, email, teacher, role } | { ok:false, code }
+// authenticate(body) → { ok, email, teacher, role, title, permissions } | { ok:false, code }
 function authenticate(body) {
   const v = verifyIdToken(body && body.idToken);
   if (!v.ok) return v;
   const t = lookupTeacher(v.email);
   if (!t) return { ok: false, code: 'unauthorized', email: v.email };
-  return { ok: true, email: v.email, teacher: t.name, role: t.role };
+  const role = t.role || 'teacher';
+  let permissions;
+  if (role === 'admin') {
+    permissions = ['read_all', 'write_newcomer', 'graduate'];
+  } else if (role === 'newcomer_staff') {
+    permissions = ['write_newcomer', 'graduate'];
+  } else {
+    permissions = [];
+  }
+  return {
+    ok: true,
+    email: v.email,
+    teacher: t.name,
+    role,
+    title: t.title || '',
+    permissions,
+  };
+}
+
+// hasPerm_(auth, perm) → boolean
+function hasPerm_(auth, perm) {
+  return (auth.permissions || []).indexOf(perm) >= 0;
 }

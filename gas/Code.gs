@@ -9,6 +9,14 @@ const ACTIONS = {
   getPrayers: handleGetPrayers,
   setPrayer: handleSetPrayer,
   getStudentDetail: handleGetStudentDetail,
+  // v1.1 additions
+  getNewcomers: handleGetNewcomers,
+  addNewcomer: handleAddNewcomer,
+  setNewcomerProgress: handleSetNewcomerProgress,
+  graduate: handleGraduate,
+  getAllAttendance: handleGetAllAttendance,
+  getAllPrayers: handleGetAllPrayers,
+  getAllRosters: handleGetAllRosters,
 };
 
 function doPost(e) {
@@ -29,7 +37,7 @@ function doPost(e) {
 
 function doGet(e) {
   // Health check only. The HTML is hosted on GitHub Pages.
-  return jsonOut({ ok: true, service: 'hyerim-attendance', version: 'v1.0' });
+  return jsonOut({ ok: true, service: 'hyerim-attendance', version: 'v1.1' });
 }
 
 function jsonOut(obj) {
