@@ -38,9 +38,13 @@ function doPost(e) {
   }
 }
 
+// Build tag — bumped whenever code is materially changed. Lets us check
+// whether the deployment captured the latest IDE snapshot by hitting GET /exec.
+const BUILD_TAG = 'v1.1.4-hasContent-cache-newcomer-pos';
+
 function doGet(e) {
   // Health check only. The HTML is hosted on GitHub Pages.
-  return jsonOut({ ok: true, service: 'hyerim-attendance', version: 'v1.1' });
+  return jsonOut({ ok: true, service: 'hyerim-attendance', version: 'v1.1', build: BUILD_TAG });
 }
 
 function jsonOut(obj) {
