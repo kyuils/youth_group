@@ -187,8 +187,6 @@ function appendNewcomerRow_(obj) {
   // Column layout: A=번호, B=교사명(공란), C=이름, D=출결(공란), E=성별,
   //   F=연락처, G=생년월일, H=초등학교(공란), I=학교, J=학년, K=신급(공란),
   //   L=부/모(공란), M=부모님연락처, N=비고([새가족] prefix), O=주소, P=반=새가족
-  // All free-text fields are passed through sanitizeCell_ to neutralize
-  // Google Sheets formula injection (=, +, -, @ prefix).
   const row = [
     obj['번호'],                                  // A (number, safe)
     '',                                           // B 교사명 공란
@@ -207,7 +205,23 @@ function appendNewcomerRow_(obj) {
     sanitizeCell_(obj['주소']),                   // O
     '새가족',                                     // P (constant, OK)
   ];
-  sh.appendRow(row);
+  // sh.appendRow() inserts after sheet.getLastRow(), which may include phantom
+  // blank rows from earlier sheet expansions, leaving a big gap below real data.
+  // Find the true last data row by scanning the 이름 column (C) upward.
+  // Header occupies rows 1-2; data starts at row 3.
+  const lastMetaRow = sh.getLastRow();
+  let lastDataRow = 2;
+  if (lastMetaRow >= 3) {
+    const names = sh.getRange(3, 3, lastMetaRow - 2, 1).getValues();
+    for (let i = names.length - 1; i >= 0; i--) {
+      if (String(names[i][0] == null ? '' : names[i][0]).trim() !== '') {
+        lastDataRow = i + 3;
+        break;
+      }
+    }
+  }
+  const insertRow = lastDataRow + 1;
+  sh.getRange(insertRow, 1, 1, row.length).setValues([row]);
 }
 
 function updateClassInRawSheet_(studentId, newTeacher) {
