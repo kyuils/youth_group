@@ -59,16 +59,37 @@ function rowFromObj_(headers, obj) {
   return headers.map((h) => (obj[h] === undefined ? '' : obj[h]));
 }
 
+// CacheService.put has a 100KB per-value limit. Larger payloads throw.
+// safeCachePut_ silently skips caching if the payload would exceed that limit
+// (or if the cache write fails for any other reason).
+function safeCachePut_(cache, key, value, seconds) {
+  try {
+    if (typeof value !== 'string') value = JSON.stringify(value);
+    if (value.length > 95000) return false; // leave headroom under 100KB
+    cache.put(key, value, seconds);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function safeCacheGet_(cache, key) {
+  try {
+    const raw = cache.get(key);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) {
+    return null;
+  }
+}
+
 // Lookup helpers
 function lookupTeacher(email) {
   const cache = CacheService.getScriptCache();
-  const cached = cache.get('TEACHERS_v1');
-  let rows;
-  if (cached) {
-    rows = JSON.parse(cached);
-  } else {
+  let rows = safeCacheGet_(cache, 'TEACHERS_v1');
+  if (!rows) {
     rows = readTable_(SHEET_NAMES.TEACHERS).rows;
-    cache.put('TEACHERS_v1', JSON.stringify(rows), 300); // 5 min
+    safeCachePut_(cache, 'TEACHERS_v1', rows, 300); // 5 min
   }
   const lower = String(email).toLowerCase().trim();
   const found = rows.find((r) => String(r.email || '').toLowerCase().trim() === lower && isActive_(r.active));
@@ -78,16 +99,22 @@ function lookupTeacher(email) {
 
 function listStudentsForTeacher(teacherName) {
   const cache = CacheService.getScriptCache();
-  const cacheKey = 'STUDENTS_v1';
-  let rows;
-  const cached = cache.get(cacheKey);
-  if (cached) {
-    rows = JSON.parse(cached);
-  } else {
-    rows = readTable_(SHEET_NAMES.STUDENTS).rows;
-    cache.put(cacheKey, JSON.stringify(rows), 300);
+  // STUDENTS can be large (200+ rows × 15 cols with PII). Cache a minimal
+  // projection that fits well under 100KB rather than the raw rows.
+  let minimal = safeCacheGet_(cache, 'STUDENTS_MIN_v1');
+  if (!minimal) {
+    const rows = readTable_(SHEET_NAMES.STUDENTS).rows;
+    minimal = rows.map((r) => ({
+      id: r.id,
+      '반': r['반'],
+      '이름': r['이름'],
+      '학년': r['학년'],
+      '성별': r['성별'],
+      active: r.active,
+    }));
+    safeCachePut_(cache, 'STUDENTS_MIN_v1', minimal, 300);
   }
-  return rows.filter((r) => String(r['반']).trim() === teacherName.trim() && isActive_(r.active));
+  return minimal.filter((r) => String(r['반']).trim() === teacherName.trim() && isActive_(r.active));
 }
 
 function findStudentById_(id) {
@@ -97,5 +124,5 @@ function findStudentById_(id) {
 
 function invalidateCache_(keys) {
   const c = CacheService.getScriptCache();
-  (keys || ['STUDENTS_v1', 'TEACHERS_v1']).forEach((k) => c.remove(k));
+  (keys || ['STUDENTS_MIN_v1', 'TEACHERS_v1', 'ATT_IDX_v1']).forEach((k) => c.remove(k));
 }
