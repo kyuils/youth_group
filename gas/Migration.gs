@@ -1,36 +1,15 @@
-// Migration.gs — one-shot helpers to migrate from existing sheet structure.
-// Run from Apps Script IDE manually after backing up.
+// Migration.gs - v1.1 only (v1.0 legacy helpers removed for safety)
+//
+// migration_assignMissingStudentIds 는 STUDENTS 시트가 ArrayFormula view 인 경우
+// A컬럼 setValue 가 수식을 덮어써서 시트를 망가뜨립니다. v1.0 사고 재발 방지로 제거.
 
-function migration_assignMissingStudentIds() {
-  const sh = getSheet_(SHEET_NAMES.STUDENTS);
-  const last = sh.getLastRow();
-  if (last < 2) return;
-  const idCol = 1; // 'id' is column A
-  const values = sh.getRange(2, idCol, last - 1, 1).getValues();
-  let changed = 0;
-  values.forEach((row, i) => {
-    if (!row[0]) {
-      sh.getRange(i + 2, idCol).setValue(Utilities.getUuid());
-      changed++;
-    }
-  });
-  Logger.log('Assigned %s new UUIDs', changed);
+// a_run_v11: IDE 에서 default 선택될 수 있도록 알파벳 첫 함수.
+// migration_v11_setup + migration_v11_set_roles 를 한 번에 실행.
+function a_run_v11() {
+  migration_v11_setup();
+  migration_v11_set_roles();
+  return 'v11 done';
 }
-
-function migration_markAllActive() {
-  const sh = getSheet_(SHEET_NAMES.STUDENTS);
-  const { headers } = readTable_(SHEET_NAMES.STUDENTS);
-  const col = headers.indexOf('active') + 1;
-  if (col === 0) throw new Error('active column not found');
-  const last = sh.getLastRow();
-  if (last < 2) return;
-  const range = sh.getRange(2, col, last - 1, 1);
-  const values = range.getValues();
-  values.forEach((r, i) => { if (r[0] === '') values[i][0] = true; });
-  range.setValues(values);
-}
-
-// v1.1 migrations =========================================
 
 function migration_v11_setup() {
   const ss = getSpreadsheet_();
@@ -103,5 +82,5 @@ function migration_v11_set_roles() {
     }
   }
   invalidateCache_(['TEACHERS_v1']);
-  Logger.log('migration_v11_set_roles: %s rows updated', changed);
+  Logger.log('migration_v11_set_roles: ' + changed + ' rows updated');
 }
