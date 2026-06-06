@@ -30,8 +30,11 @@ function doPost(e) {
     const result = handler(body);
     return jsonOut(result);
   } catch (err) {
-    console.error(err.stack || err);
-    return jsonOut({ ok: false, code: 'server_error', message: String(err.message || err) });
+    // Log full detail server-side for diagnosis, but return only a generic
+    // code to clients. The internal message may contain sheet IDs, file
+    // paths, or stack trace fragments useful to an attacker.
+    console.error('[server_error]', err && err.stack ? err.stack : err);
+    return jsonOut({ ok: false, code: 'server_error' });
   }
 }
 

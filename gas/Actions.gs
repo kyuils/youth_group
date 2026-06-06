@@ -46,7 +46,13 @@ function handleGetStudentDetail(body) {
   if (!auth.ok) return auth;
   const s = findStudentById_(body.studentId);
   if (!s) return { ok: false, code: 'not_found' };
-  if (String(s['반']).trim() !== auth.teacher.trim()) {
+  // Admin may inspect any student detail. Others must own the class, or the
+  // student is a 새가족 and they have write_newcomer permission.
+  const isOwn = String(s['반']).trim() === auth.teacher.trim();
+  const isAdmin = hasPerm_(auth, 'read_all');
+  const isNewcomerAndStaff = String(s['반']).trim() === '새가족' && hasPerm_(auth, 'write_newcomer');
+  if (!isOwn && !isAdmin && !isNewcomerAndStaff) {
+    logForbidden_(auth, 'getStudentDetail', body);
     return { ok: false, code: 'forbidden' };
   }
   const detail = {};
@@ -116,6 +122,7 @@ function handleSetAttendance(body) {
   const isNewcomerClass = studentClass === '새가족' && hasPerm_(auth, 'write_newcomer');
   const isAdmin = hasPerm_(auth, 'read_all');
   if (!isOwnClass && !isNewcomerClass && !isAdmin) {
+    logForbidden_(auth, 'setAttendance', body);
     return { ok: false, code: 'forbidden' };
   }
   const lock = LockService.getScriptLock();
@@ -151,6 +158,7 @@ function handleSetAttendanceBatch(body) {
     const isNewcomerClass = studentClass === '새가족' && hasPerm_(auth, 'write_newcomer');
     const isAdmin = hasPerm_(auth, 'read_all');
     if (!isOwnClass && !isNewcomerClass && !isAdmin) {
+      logForbidden_(auth, 'setAttendanceBatch', { studentId: it.studentId });
       return { ok: false, code: 'forbidden', studentId: it.studentId };
     }
     resolved.push({ student: s, studentClass, status: it.status, etcText: it.etcText || '' });
@@ -236,6 +244,7 @@ function handleSetPrayer(body) {
   const student = findStudentById_(studentId);
   if (!student) return { ok: false, code: 'not_found' };
   if (String(student['반']).trim() !== auth.teacher.trim()) {
+    logForbidden_(auth, 'setPrayer(student)', body);
     return { ok: false, code: 'forbidden' };
   }
   const lock = LockService.getScriptLock();
@@ -247,10 +256,11 @@ function handleSetPrayer(body) {
       const target = rows.find((r) => String(r.id) === String(id));
       if (!target) return { ok: false, code: 'not_found' };
       if (String(target['반']).trim() !== auth.teacher.trim()) {
+        logForbidden_(auth, 'setPrayer(target)', body);
         return { ok: false, code: 'forbidden' };
       }
       const updated = Object.assign({}, target, {
-        '내용': text !== undefined ? text : target['내용'],
+        '내용': sanitizeCell_(text !== undefined ? text : target['내용']),
         'active': active !== undefined ? active : target.active,
         '수정시각': new Date().toISOString(),
       });
@@ -263,7 +273,7 @@ function handleSetPrayer(body) {
       const obj = {
         id: newId, '학생id': studentId, '반': auth.teacher,
         '작성자email': auth.email, '작성시각': now, '수정시각': now,
-        '내용': text || '', 'active': true,
+        '내용': sanitizeCell_(text || ''), 'active': true,
       };
       appendRow_(SHEET_NAMES.PRAYERS, rowFromObj_(PRAYER_HEADERS, obj));
       return { ok: true, id: newId };
@@ -313,6 +323,7 @@ function handleAddNewcomer(body) {
   const auth = authenticate(body);
   if (!auth.ok) return auth;
   if (!hasPerm_(auth, 'write_newcomer') && !hasPerm_(auth, 'read_all')) {
+    logForbidden_(auth, 'addNewcomer', body);
     return { ok: false, code: 'forbidden' };
   }
   const { name, gender, phone, birthDate, grade, school, address, note } = body;
@@ -344,6 +355,7 @@ function handleSetNewcomerProgress(body) {
   const auth = authenticate(body);
   if (!auth.ok) return auth;
   if (!hasPerm_(auth, 'write_newcomer') && !hasPerm_(auth, 'read_all')) {
+    logForbidden_(auth, 'setNewcomerProgress', body);
     return { ok: false, code: 'forbidden' };
   }
   const { studentId, week, completed } = body;
@@ -353,6 +365,15 @@ function handleSetNewcomerProgress(body) {
   const weekNum = Number(week);
   if (![1, 2, 3, 4].includes(weekNum)) {
     return { ok: false, code: 'bad_request', message: 'week must be 1-4' };
+  }
+  // Verify the target studentId actually belongs to the 새가족 class.
+  // Without this check, a newcomer_staff member could fabricate progress
+  // records for any student in any class.
+  const student = findStudentById_(studentId);
+  if (!student) return { ok: false, code: 'not_found' };
+  if (String(student['반']).trim() !== '새가족') {
+    logForbidden_(auth, 'setNewcomerProgress(not newcomer class)', body);
+    return { ok: false, code: 'forbidden' };
   }
   const lock = LockService.getScriptLock();
   lock.waitLock(15000);
@@ -366,6 +387,7 @@ function handleGraduate(body) {
   const auth = authenticate(body);
   if (!auth.ok) return auth;
   if (!hasPerm_(auth, 'graduate') && !hasPerm_(auth, 'read_all')) {
+    logForbidden_(auth, 'graduate', body);
     return { ok: false, code: 'forbidden' };
   }
   const { studentId, targetTeacher } = body;

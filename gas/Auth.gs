@@ -66,3 +66,16 @@ function authenticate(body) {
 function hasPerm_(auth, perm) {
   return (auth.permissions || []).indexOf(perm) >= 0;
 }
+
+// logForbidden_(auth, action, body) — record unauthorized access attempts to
+// Apps Script execution log for forensic review. Avoids logging full PII —
+// only email + action + studentId (if any).
+function logForbidden_(auth, action, body) {
+  try {
+    const email = (auth && auth.email) || 'unknown';
+    const sid = body && (body.studentId || body.id || '');
+    console.warn('[AUDIT] forbidden email=' + email + ' action=' + action + (sid ? ' studentId=' + sid : ''));
+  } catch (e) {
+    // never throw from audit logging
+  }
+}

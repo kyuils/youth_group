@@ -161,29 +161,43 @@ function getNextStudentId_() {
   return maxId + 1;
 }
 
+// Defense against CSV/Sheet formula injection.
+// Google Sheets evaluates cells starting with = + - @ as formulas, which lets
+// a malicious whitelisted user smuggle =IMPORTDATA(...) and exfiltrate the
+// owner's PII when the sheet is opened or exported. Prefix such inputs with
+// a single quote so they are stored as literal text.
+function sanitizeCell_(v) {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'number' || typeof v === 'boolean' || v instanceof Date) return v;
+  const s = String(v);
+  return /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
+}
+
 function appendNewcomerRow_(obj) {
   const sh = getSpreadsheet_().getSheetByName(SHEET_NAMES.RAW_CLASS);
   if (!sh) throw new Error('Sheet not found: ' + SHEET_NAMES.RAW_CLASS);
   // Column layout: A=번호, B=교사명(공란), C=이름, D=출결(공란), E=성별,
   //   F=연락처, G=생년월일, H=초등학교(공란), I=학교, J=학년, K=신급(공란),
   //   L=부/모(공란), M=부모님연락처, N=비고([새가족] prefix), O=주소, P=반=새가족
+  // All free-text fields are passed through sanitizeCell_ to neutralize
+  // Google Sheets formula injection (=, +, -, @ prefix).
   const row = [
-    obj['번호'],       // A
-    '',               // B 교사명 공란
-    obj['이름'],       // C
-    '',               // D 출결 공란
-    obj['성별'],       // E
-    obj['연락처'],     // F
-    obj['생년월일'],   // G
-    '',               // H 초등학교 공란
-    obj['학교'],       // I
-    obj['학년'],       // J
-    '',               // K 신급 공란
-    '',               // L 부/모 공란
-    obj['부모님연락처'], // M
-    '[새가족] ' + (obj['비고'] || ''), // N
-    obj['주소'],       // O
-    '새가족',          // P
+    obj['번호'],                                  // A (number, safe)
+    '',                                           // B 교사명 공란
+    sanitizeCell_(obj['이름']),                   // C
+    '',                                           // D 출결 공란
+    sanitizeCell_(obj['성별']),                   // E
+    sanitizeCell_(obj['연락처']),                 // F
+    sanitizeCell_(obj['생년월일']),               // G
+    '',                                           // H 초등학교 공란
+    sanitizeCell_(obj['학교']),                   // I
+    sanitizeCell_(obj['학년']),                   // J
+    '',                                           // K 신급 공란
+    '',                                           // L 부/모 공란
+    sanitizeCell_(obj['부모님연락처']),           // M
+    '[새가족] ' + sanitizeCell_(obj['비고'] || ''), // N (prefix is constant, OK)
+    sanitizeCell_(obj['주소']),                   // O
+    '새가족',                                     // P (constant, OK)
   ];
   sh.appendRow(row);
 }
