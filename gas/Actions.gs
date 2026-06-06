@@ -151,7 +151,7 @@ function handleSetAttendance(body) {
       studentName: student['이름'],
       teacher: studentClass,
       status,
-      etcText: status === 'ETC' ? (etcText || '') : '',
+      etcText: (status === 'ETC' || status === 'ABSENT') ? (etcText || '') : '',
       recorder: auth.email,
     });
   } finally { lock.releaseLock(); }
@@ -196,7 +196,7 @@ function handleSetAttendanceBatch(body) {
         studentName: r.student['이름'],
         teacher: r.studentClass,
         status: r.status,
-        etcText: r.status === 'ETC' ? r.etcText : '',
+        etcText: (r.status === 'ETC' || r.status === 'ABSENT') ? r.etcText : '',
         recorder: auth.email,
       });
       touchedClasses.add(r.studentClass);
@@ -230,7 +230,8 @@ function upsertAttendance_({ date, studentId, studentName, teacher, status, etcT
   }
   const now = new Date().toISOString();
   // 8-column order: 날짜, 학생id, 학생이름, 반, 상태, 기타내용, 기록자email, 기록시각
-  const values = [date, String(studentId), studentName, teacher, status, etcText || '', recorder, now];
+  // sanitizeCell_ on free-text etcText to neutralize formula injection.
+  const values = [date, String(studentId), studentName, teacher, status, sanitizeCell_(etcText || ''), recorder, now];
   if (idx[key]) {
     sh.getRange(idx[key], 1, 1, ATT_HEADERS.length).setValues([values]);
   } else {

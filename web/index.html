@@ -538,7 +538,10 @@
       const setStatus = (studentId, status) => {
         let etcText = null;
         if (status === 'ETC') {
-          etcText = window.prompt('기타 사유를 입력하세요 (예: 결방, 가족여행, 병원 등)');
+          etcText = window.prompt('외부 예배 장소/사유를 입력하세요 (예: 타 교회, 사경회, 수련회 등)');
+          if (etcText === null) return; // 취소
+        } else if (status === 'ABSENT') {
+          etcText = window.prompt('결석 사유 (선택, 예: 병원, 가족여행 등) — 미입력 후 확인을 눌러도 결석으로 기록됩니다');
           if (etcText === null) return; // 취소
         }
         const key = date + '|' + studentId;
@@ -845,7 +848,10 @@
       const setAttendance = (studentId, status) => {
         let etcText = null;
         if (status === 'ETC') {
-          etcText = window.prompt('기타 사유를 입력하세요');
+          etcText = window.prompt('외부 예배 장소/사유 (예: 타 교회, 사경회)');
+          if (etcText === null) return;
+        } else if (status === 'ABSENT') {
+          etcText = window.prompt('결석 사유 (선택, 예: 병원, 가족여행)');
           if (etcText === null) return;
         }
         callApi('setAttendance', { idToken, date: todayDate, studentId, status, etcText })

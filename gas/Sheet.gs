@@ -108,7 +108,7 @@ function listStudentsForTeacher(teacherName, opts) {
   const cache = CacheService.getScriptCache();
   // STUDENTS can be large (200+ rows × 15 cols with PII). Cache a minimal
   // projection that fits well under 100KB rather than the raw rows.
-  let minimal = safeCacheGet_(cache, 'STUDENTS_MIN_v1');
+  let minimal = safeCacheGet_(cache, 'STUDENTS_MIN_v2');
   if (!minimal) {
     const rows = readTable_(SHEET_NAMES.STUDENTS).rows;
     minimal = rows.map((r) => ({
@@ -119,18 +119,22 @@ function listStudentsForTeacher(teacherName, opts) {
       '성별': r['성별'],
       active: r.active,
     }));
-    safeCachePut_(cache, 'STUDENTS_MIN_v1', minimal, 300);
+    safeCachePut_(cache, 'STUDENTS_MIN_v2', minimal, 300);
   }
   const includeAll = opts && opts.includeAll === true;
+  // Filter out blank rows: a row needs both a non-empty 이름 AND a non-empty 반.
+  // This prevents phantom rows (sheet pre-allocates blank rows or empty
+  // ArrayFormula slots) from being counted as students.
+  const hasContent = (r) => String(r['이름'] || '').trim() !== '' && String(r['반'] || '').trim() !== '';
   if (includeAll) {
-    return minimal.filter((r) => isActive_(r.active));
+    return minimal.filter((r) => hasContent(r) && isActive_(r.active));
   }
-  return minimal.filter((r) => String(r['반']).trim() === teacherName.trim() && isActive_(r.active));
+  return minimal.filter((r) => hasContent(r) && String(r['반']).trim() === teacherName.trim() && isActive_(r.active));
 }
 
 function listNewcomers() {
   const cache = CacheService.getScriptCache();
-  let minimal = safeCacheGet_(cache, 'STUDENTS_MIN_v1');
+  let minimal = safeCacheGet_(cache, 'STUDENTS_MIN_v2');
   if (!minimal) {
     const rows = readTable_(SHEET_NAMES.STUDENTS).rows;
     minimal = rows.map((r) => ({
@@ -141,9 +145,13 @@ function listNewcomers() {
       '성별': r['성별'],
       active: r.active,
     }));
-    safeCachePut_(cache, 'STUDENTS_MIN_v1', minimal, 300);
+    safeCachePut_(cache, 'STUDENTS_MIN_v2', minimal, 300);
   }
-  return minimal.filter((r) => String(r['반']).trim() === '새가족' && isActive_(r.active));
+  return minimal.filter((r) =>
+    String(r['이름'] || '').trim() !== '' &&
+    String(r['반']).trim() === '새가족' &&
+    isActive_(r.active)
+  );
 }
 
 function getNextStudentId_() {
@@ -217,8 +225,8 @@ function updateClassInRawSheet_(studentId, newTeacher) {
   }
   if (targetRow < 0) throw new Error('Student not found in raw sheet: ' + studentId);
   // Update P column (col 16) to newTeacher
-  sh.getRange(targetRow, 16).setValue(newTeacher);
-  // Remove [새가족] prefix from N column (col 14)
+  sh.getRange(targetRow, 16).setValue(sanitizeCell_(newTeacher));
+  // Update N column (col 14): remove [새가족] prefix, append [등반: YYYY-MM-DD] note
   const noteCell = sh.getRange(targetRow, 14);
   let note = String(noteCell.getValue() || '');
   if (note.startsWith('[새가족] ')) {
@@ -226,7 +234,12 @@ function updateClassInRawSheet_(studentId, newTeacher) {
   } else if (note.startsWith('[새가족]')) {
     note = note.substring('[새가족]'.length).trimStart();
   }
-  noteCell.setValue(note);
+  // Append graduation date marker so 2026 반편성 sheet alone tells the full story.
+  const d = new Date();
+  const dateStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const marker = '[등반:' + dateStr + ' → ' + newTeacher + ']';
+  note = (note ? note + ' ' : '') + marker;
+  noteCell.setValue(sanitizeCell_(note));
 }
 
 function readNewcomerProgress_() {
@@ -328,5 +341,5 @@ function findStudentById_(id) {
 
 function invalidateCache_(keys) {
   const c = CacheService.getScriptCache();
-  (keys || ['STUDENTS_MIN_v1', 'TEACHERS_v1', 'ATT_IDX_v1']).forEach((k) => c.remove(k));
+  (keys || ['STUDENTS_MIN_v2', 'TEACHERS_v1', 'ATT_IDX_v1']).forEach((k) => c.remove(k));
 }
