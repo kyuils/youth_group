@@ -71,12 +71,21 @@ function handleGetAttendance(body) {
   const auth = authenticate(body);
   if (!auth.ok) return auth;
   const year = Number(body.year) || new Date().getFullYear();
-  const { rows } = readTable_(SHEET_NAMES.ATTENDANCE);
-
-  // admin with classFilter='all' can see all classes
   const classFilter = body.classFilter;
   const isAllAdmin = hasPerm_(auth, 'read_all') && classFilter === 'all';
 
+  // Cache per (teacher, year). Skips cache for admin-all view because the
+  // payload would exceed CacheService 100KB limit.
+  const cache = CacheService.getScriptCache();
+  const cacheKey = isAllAdmin
+    ? null
+    : 'ATT_v1_' + auth.teacher + '_' + year;
+  if (cacheKey) {
+    const hit = safeCacheGet_(cache, cacheKey);
+    if (hit) return { ok: true, year, rows: hit, _cached: true };
+  }
+
+  const { rows } = readTable_(SHEET_NAMES.ATTENDANCE);
   const out = rows
     .filter((r) => isAllAdmin || String(r['반']).trim() === auth.teacher.trim())
     .filter((r) => {
@@ -91,7 +100,16 @@ function handleGetAttendance(body) {
       etcText: String(r['기타내용'] || ''),
       teacher: String(r['반']),
     }));
+  if (cacheKey) safeCachePut_(cache, cacheKey, out, 300); // 5 min
   return { ok: true, year, rows: out };
+}
+
+// Invalidate attendance cache for a (teacher, year) pair after a write.
+function invalidateAttendanceCache_(teacher, year) {
+  try {
+    const cache = CacheService.getScriptCache();
+    cache.remove('ATT_v1_' + teacher + '_' + year);
+  } catch (e) { /* ignore */ }
 }
 
 function formatDate_(v) {
@@ -137,6 +155,9 @@ function handleSetAttendance(body) {
       recorder: auth.email,
     });
   } finally { lock.releaseLock(); }
+  // Invalidate cache for the affected (class, year) so the next read reflects the write.
+  const dateYear = Number(String(date).substring(0, 4));
+  if (dateYear) invalidateAttendanceCache_(studentClass, dateYear);
   return { ok: true };
 }
 
@@ -166,6 +187,7 @@ function handleSetAttendanceBatch(body) {
   const lock = LockService.getScriptLock();
   lock.waitLock(15000);
   let written = 0;
+  const touchedClasses = new Set();
   try {
     resolved.forEach((r) => {
       upsertAttendance_({
@@ -177,9 +199,13 @@ function handleSetAttendanceBatch(body) {
         etcText: r.status === 'ETC' ? r.etcText : '',
         recorder: auth.email,
       });
+      touchedClasses.add(r.studentClass);
       written++;
     });
   } finally { lock.releaseLock(); }
+  // Invalidate cache for every (touched class, year)
+  const dateYear = Number(String(date).substring(0, 4));
+  if (dateYear) touchedClasses.forEach(function(c){ invalidateAttendanceCache_(c, dateYear); });
   return { ok: true, written };
 }
 
