@@ -75,6 +75,30 @@
       margin:8px 16px;display:flex;align-items:center;gap:12px;
       transition:border-color 120ms ease, background 120ms ease;
     }
+    /* Compact mode: smaller padding, smaller pills, name column fixed width */
+    .student-card.compact{padding:10px 12px;margin:6px 12px;gap:10px}
+    .student-card.compact .student-info{flex:0 0 80px;min-width:80px;max-width:96px}
+    .student-card.compact .student-name{font-size:14px;line-height:1.2}
+    .student-card.compact .student-meta{font-size:11px;margin-top:1px}
+    .student-card.compact .student-actions{flex:1;gap:4px;justify-content:flex-end}
+
+    /* Bulk-action bar above the roster */
+    .bulk-bar{
+      padding:8px 16px 4px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;
+      border-bottom:1px solid var(--line-solid);margin-bottom:4px;
+    }
+    .bulk-label{font-size:11px;color:var(--label-alt);font-weight:600;margin-right:2px}
+    .bulk-bar .pill[disabled]{opacity:.5;cursor:wait}
+
+    /* Inline link chip for tel:/sms:/maps in student detail */
+    .link-chip{
+      display:inline-flex;align-items:center;gap:3px;
+      padding:3px 9px;border-radius:999px;
+      background:rgba(0,102,255,0.08);color:var(--primary);
+      font-size:12px;font-weight:600;text-decoration:none;
+      transition:background 120ms ease;
+    }
+    .link-chip:hover{background:rgba(0,102,255,0.16)}
     .student-card[data-status="P2"]{background:rgba(0,191,64,0.04);border-color:rgba(0,191,64,0.25)}
     .student-card[data-status="P3"]{background:rgba(0,102,255,0.03);border-color:rgba(0,102,255,0.22)}
     .student-card[data-status="P4"]{background:rgba(101,65,242,0.04);border-color:rgba(101,65,242,0.22)}
@@ -90,6 +114,8 @@
       border:1.5px solid var(--line-solid);background:#fff;
       transition:all 120ms ease;
     }
+    /* Compact pill — keeps 5 status pills on a single row on phone widths */
+    .pill.compact{padding:4px 7px;font-size:11px;border-width:1px;letter-spacing:-0.02em}
     .pill:hover{background:var(--fill-normal)}
     .pill.active.P2{background:rgba(0,191,64,.15);border-color:var(--status-positive);color:#007a29;box-shadow:0 0 0 1px rgba(0,191,64,.18)}
     .pill.active.P3{background:rgba(0,102,255,.12);border-color:var(--primary);color:#003e99;box-shadow:0 0 0 1px rgba(0,102,255,.15)}
@@ -515,6 +541,8 @@
       const [students, setStudents] = useState(null);
       const [att, setAtt] = useState({});
       const [loading, setLoading] = useState(true);
+      const [pendingEtc, setPendingEtc] = useState(null); // { studentId, status, prevStatus }
+      const [bulkBusy, setBulkBusy] = useState(false);
 
       useEffect(() => {
         let aborted = false;
@@ -535,15 +563,8 @@
         return () => { aborted = true; };
       }, [idToken, toast.show]);
 
-      const setStatus = (studentId, status) => {
-        let etcText = null;
-        if (status === 'ETC') {
-          etcText = window.prompt('외부 예배 장소/사유를 입력하세요 (예: 타 교회, 사경회, 수련회 등)');
-          if (etcText === null) return; // 취소
-        } else if (status === 'ABSENT') {
-          etcText = window.prompt('결석 사유 (선택, 예: 병원, 가족여행 등) — 미입력 후 확인을 눌러도 결석으로 기록됩니다');
-          if (etcText === null) return; // 취소
-        }
+      // Common attendance write with optimistic update + rollback.
+      const saveAttendance = (studentId, status, etcText) => {
         const key = date + '|' + studentId;
         let prev;
         setAtt((m) => { prev = m[key]; return { ...m, [key]: status }; });
@@ -570,35 +591,130 @@
           });
       };
 
+      const setStatus = (studentId, status) => {
+        // ETC/ABSENT use a mobile-friendly bottom sheet instead of window.prompt.
+        if (status === 'ETC' || status === 'ABSENT') {
+          const prev = att[date + '|' + studentId];
+          setPendingEtc({ studentId, status, prevStatus: prev });
+          return;
+        }
+        saveAttendance(studentId, status, '');
+      };
+
+      const handleEtcSave = (text) => {
+        if (!pendingEtc) return;
+        saveAttendance(pendingEtc.studentId, pendingEtc.status, text || '');
+        setPendingEtc(null);
+      };
+      const handleEtcCancel = () => setPendingEtc(null);
+
+      // Bulk attendance: apply same status to every student in the class.
+      const bulkSet = (status) => {
+        if (!students || students.length === 0) return;
+        const label = STATUS_OPTIONS.find(function(o){return o.code === status;});
+        const labelText = label ? label.label : status;
+        if (!window.confirm('반 전체 ' + students.length + '명을 \'' + labelText + '\'로 일괄 표시할까요?')) return;
+        setBulkBusy(true);
+        const items = students.map(function(s){ return { studentId: s.id, status: status, etcText: '' }; });
+        // optimistic
+        setAtt(function(m){
+          const next = { ...m };
+          students.forEach(function(s){ next[date + '|' + s.id] = status; });
+          return next;
+        });
+        callApi('setAttendanceBatch', { idToken, date, items })
+          .then(function(r){
+            setBulkBusy(false);
+            if (r.ok) toast.show((r.written || items.length) + '명 ' + labelText + ' 처리됨');
+            else toast.show('일괄 저장 실패: ' + (r.code || ''));
+          })
+          .catch(function(){ setBulkBusy(false); toast.show('네트워크 오류'); });
+      };
+
       if (loading) return <div className="loading">불러오는 중…</div>;
       if (!students || students.length === 0) return <div className="loading">학생이 없습니다.</div>;
 
+      // Sort by name (Korean locale) for predictable scanning.
+      const sortedStudents = [...students].sort(function(a, b){
+        return String(a['이름'] || '').localeCompare(String(b['이름'] || ''), 'ko');
+      });
+
       return (
         <>
-          <div style={{padding:'12px 16px'}}>
+          <div style={{padding:'12px 16px 0'}}>
             <label style={{fontSize:13,color:'var(--label-alt)'}}>예배 날짜</label>
             <input type="date" value={date} onChange={(e) => onChangeDate(e.target.value)}
-              style={{display:'block',marginTop:4,padding:'8px 12px',border:'1px solid var(--line-solid)',borderRadius:8,font:'inherit'}} />
+              style={{display:'block',marginTop:4,padding:'8px 12px',border:'1px solid var(--line-solid)',borderRadius:8,font:'inherit',width:'100%'}} />
           </div>
-          {students.map((s) => {
+          <div className="bulk-bar">
+            <span className="bulk-label">일괄 표시</span>
+            {STATUS_OPTIONS.map((opt) => (
+              <button key={opt.code} className="pill compact"
+                disabled={bulkBusy}
+                onClick={() => bulkSet(opt.code)}>{opt.label}</button>
+            ))}
+          </div>
+          {sortedStudents.map((s) => {
             const cur = att[date + '|' + s.id];
             return (
-              <div className="student-card" key={s.id} data-status={cur || undefined}>
-                <div>
+              <div className="student-card compact" key={s.id} data-status={cur || undefined}>
+                <div className="student-info">
                   <button className="student-name" onClick={() => onOpenDetail(s.id)} style={{textAlign:'left'}}>{s['이름']}</button>
                   <div className="student-meta">{s['학년']} · {s['성별']}</div>
                 </div>
                 <div className="student-actions">
                   {STATUS_OPTIONS.map((opt) => (
                     <button key={opt.code}
-                      className={'pill ' + (cur === opt.code ? 'active ' + opt.code : '')}
+                      className={'pill compact ' + (cur === opt.code ? 'active ' + opt.code : '')}
                       onClick={() => setStatus(s.id, opt.code)}>{opt.label}</button>
                   ))}
                 </div>
               </div>
             );
           })}
+          {pendingEtc && (
+            <EtcInputSheet status={pendingEtc.status} onSave={handleEtcSave} onCancel={handleEtcCancel} />
+          )}
         </>
+      );
+    }
+
+    // Mobile-friendly bottom sheet for entering ETC (외부예배) or ABSENT 사유.
+    // Replaces window.prompt for better keyboard handling on phones.
+    function EtcInputSheet({ status, onSave, onCancel }) {
+      const [value, setValue] = useState('');
+      const isEtc = status === 'ETC';
+      const title = isEtc ? '외부 예배 입력' : '결석 사유 (선택)';
+      const help = isEtc
+        ? '다른 곳에서 예배드린 장소나 사유를 입력하세요. 예: 타 교회, 사경회, 수련회'
+        : '결석 사유를 입력하세요. 비워두면 사유 없이 결석으로 기록됩니다.';
+      const placeholder = isEtc ? '예: 타 교회, 사경회' : '예: 병원, 가족여행 (빈 칸도 OK)';
+
+      useEffect(() => {
+        const onKey = (e) => { if (e.key === 'Escape') onCancel(); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+      }, [onCancel]);
+
+      return (
+        <div className="sheet-overlay" role="dialog" aria-modal="true" onClick={onCancel}>
+          <div className="sheet" onClick={(e)=>e.stopPropagation()}>
+            <div className="sheet-handle"></div>
+            <div style={{padding:'4px 20px 20px'}}>
+              <h3 style={{margin:'4px 0 6px',fontSize:17,fontWeight:600}}>{title}</h3>
+              <p style={{margin:'0 0 12px',fontSize:12,color:'var(--label-alt)',lineHeight:1.45}}>{help}</p>
+              <input type="text" autoFocus value={value}
+                onChange={(e) => setValue(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') onSave(value); }}
+                placeholder={placeholder}
+                style={{width:'100%',padding:'12px 14px',border:'1.5px solid var(--line-solid)',borderRadius:10,fontSize:15,fontFamily:'inherit',outline:'none'}} />
+              <div style={{display:'flex',gap:8,marginTop:14}}>
+                <button className="btn ghost" style={{flex:1}} onClick={onCancel}>취소</button>
+                <button className="btn primary" style={{flex:2}} onClick={() => onSave(value)}>확인</button>
+              </div>
+            </div>
+          </div>
+        </div>
       );
     }
 
@@ -806,12 +922,37 @@
                 <div className="sheet-body">
                   {['학년','성별','생년월일','연락처','학교','초등학교','신급','부/모','부모님연락처','주소','비고']
                     .filter((k) => detail[k])
-                    .map((k) => (
-                      <div key={k} style={{display:'flex',padding:'6px 0',borderBottom:'1px solid var(--fill-normal)'}}>
-                        <div style={{width:90,color:'var(--label-alt)',fontSize:13,flexShrink:0}}>{k}</div>
-                        <div style={{flex:1,fontSize:14}}>{detail[k]}</div>
-                      </div>
-                    ))}
+                    .map((k) => {
+                      const v = detail[k];
+                      let display = v;
+                      // Phone numbers → tap to dial / text. Strip non-digit for href.
+                      if ((k === '연락처' || k === '부모님연락처') && v) {
+                        const cleaned = String(v).replace(/[^0-9+]/g, '');
+                        display = (
+                          <span style={{display:'inline-flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                            <span>{v}</span>
+                            <a href={'tel:' + cleaned} className="link-chip" aria-label="전화 걸기">📞 전화</a>
+                            <a href={'sms:' + cleaned} className="link-chip" aria-label="문자 보내기">💬 문자</a>
+                          </span>
+                        );
+                      } else if (k === '주소' && v) {
+                        const q = encodeURIComponent(String(v));
+                        display = (
+                          <span>
+                            <span style={{marginRight:8}}>{v}</span>
+                            <a href={'https://www.google.com/maps/search/?api=1&query=' + q}
+                               target="_blank" rel="noopener noreferrer"
+                               className="link-chip" aria-label="지도에서 보기">🗺 지도</a>
+                          </span>
+                        );
+                      }
+                      return (
+                        <div key={k} style={{display:'flex',padding:'8px 0',borderBottom:'1px solid var(--fill-normal)'}}>
+                          <div style={{width:90,color:'var(--label-alt)',fontSize:13,flexShrink:0}}>{k}</div>
+                          <div style={{flex:1,fontSize:14,lineHeight:1.45}}>{display}</div>
+                        </div>
+                      );
+                    })}
                 </div>
                 <div className="sheet-footer">
                   <button className="btn ghost" style={{width:'100%'}} onClick={onClose}>닫기</button>
