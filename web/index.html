@@ -212,6 +212,65 @@
     .admin-section h4{margin:0 0 10px;font-size:14px;font-weight:600;color:var(--label-alt)}
     .stat-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--fill-normal);font-size:14px}
     .class-group-head{font-size:13px;font-weight:600;color:var(--primary);padding:10px 0 4px}
+
+    /* Roster filter/sort toolbar */
+    .filter-bar{
+      padding:8px 16px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;
+      border-bottom:1px solid var(--line-solid);background:#fff;
+    }
+    .filter-chip{
+      padding:5px 11px;border-radius:999px;font-size:12px;font-weight:600;
+      background:var(--fill-normal);color:var(--label-alt);
+      border:1px solid transparent;cursor:pointer;transition:all 120ms ease;
+    }
+    .filter-chip.active{background:rgba(0,102,255,0.10);color:var(--primary);border-color:rgba(0,102,255,0.25)}
+    .filter-chip .count{font-weight:700;margin-left:3px}
+    .filter-sep{width:1px;height:16px;background:var(--line-solid);margin:0 4px}
+
+    /* Warning badge — 3주 연속 결석 */
+    .warn-badge{
+      display:inline-flex;align-items:center;gap:3px;
+      padding:2px 6px;border-radius:6px;background:rgba(255,66,66,0.12);
+      color:var(--status-negative);font-size:10px;font-weight:700;
+      margin-left:6px;letter-spacing:-0.02em;
+    }
+    .student-card.warn{border-left:3px solid var(--status-negative)}
+
+    /* Last attended hint in meta */
+    .last-att{color:var(--label-alt);font-size:11px;margin-left:6px}
+    .last-att.recent{color:var(--status-positive)}
+    .last-att.stale{color:var(--status-negative)}
+
+    /* Prayer createdAt */
+    .prayer-meta{font-size:11px;color:var(--label-alt);margin-top:4px}
+
+    /* Stats — progress bar + summary card */
+    .stats-summary{
+      margin:12px 16px;padding:14px 16px;border-radius:14px;
+      background:linear-gradient(135deg,#E8F0FE 0%,#F5F8FF 100%);
+      border:1px solid rgba(0,102,255,0.15);
+    }
+    .stats-summary-title{font-size:12px;color:var(--label-alt);font-weight:600;letter-spacing:0.02em;text-transform:uppercase;margin-bottom:6px}
+    .stats-summary-row{display:flex;align-items:baseline;gap:12px}
+    .stats-summary-row .big{font-size:30px;font-weight:700;color:var(--primary);letter-spacing:-0.02em;line-height:1}
+    .stats-summary-row .sub{font-size:13px;color:var(--label-normal);font-weight:500}
+    .stats-summary-meta{margin-top:8px;font-size:12px;color:var(--label-alt)}
+    .stats-summary-meta strong{color:var(--label-normal);font-weight:600}
+
+    .stat-bar-card{
+      margin:6px 16px;padding:10px 14px;border:1px solid var(--line-solid);
+      border-radius:12px;background:#fff;
+    }
+    .stat-bar-card.risk{border-color:rgba(255,66,66,0.3);background:rgba(255,66,66,0.02)}
+    .stat-bar-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px}
+    .stat-bar-name{font-size:14px;font-weight:600}
+    .stat-bar-pct{font-size:13px;font-weight:700;color:var(--primary)}
+    .stat-bar-card.risk .stat-bar-pct{color:var(--status-negative)}
+    .stat-bar-track{height:6px;border-radius:3px;background:var(--fill-normal);overflow:hidden}
+    .stat-bar-fill{height:100%;background:var(--primary);border-radius:3px;transition:width 240ms ease}
+    .stat-bar-card.risk .stat-bar-fill{background:var(--status-negative)}
+    .stat-bar-card.good .stat-bar-fill{background:var(--status-positive)}
+    .stat-bar-meta{font-size:11px;color:var(--label-alt);margin-top:4px}
   </style>
 </head>
 <body>
@@ -299,6 +358,23 @@
       const m = String(kst.getUTCMonth()+1).padStart(2,'0');
       const dd = String(kst.getUTCDate()).padStart(2,'0');
       return `${y}-${m}-${dd}`;
+    }
+
+    // Relative time for prayer createdAt etc. Accepts 'YYYY-MM-DD' or
+    // ISO timestamp; returns "오늘", "어제", "N일 전", "N주 전", or absolute date.
+    function relativeDate(iso) {
+      if (!iso) return '';
+      const dateOnly = String(iso).slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) return iso;
+      const then = new Date(dateOnly + 'T00:00:00');
+      const now = new Date(todayISO() + 'T00:00:00');
+      const diff = Math.round((now - then) / 86400000);
+      if (diff === 0) return '오늘';
+      if (diff === 1) return '어제';
+      if (diff > 0 && diff < 14) return diff + '일 전';
+      if (diff >= 14 && diff < 60) return Math.floor(diff / 7) + '주 전';
+      if (diff < 0) return dateOnly; // future → show absolute
+      return dateOnly;
     }
 
     const STATUS_OPTIONS = [
@@ -540,9 +616,12 @@
     function RosterView({ idToken, me, date, onChangeDate, toast, onOpenDetail }) {
       const [students, setStudents] = useState(null);
       const [att, setAtt] = useState({});
+      const [attRows, setAttRows] = useState([]); // raw rows for last-attended & streak
       const [loading, setLoading] = useState(true);
       const [pendingEtc, setPendingEtc] = useState(null); // { studentId, status, prevStatus }
       const [bulkBusy, setBulkBusy] = useState(false);
+      const [sortBy, setSortBy] = useState('name');    // 'name' | 'grade' | 'lastAtt'
+      const [filterBy, setFilterBy] = useState('all'); // 'all' | 'unmarked' | 'streak'
 
       useEffect(() => {
         let aborted = false;
@@ -555,8 +634,10 @@
           if (!r.ok) { toast.show('명단 불러오기 실패'); setLoading(false); return; }
           if (!a.ok) toast.show('출석 기록 불러오기 실패');
           setStudents(r.students);
+          const rows = (a.rows || []);
+          setAttRows(rows);
           const map = {};
-          (a.rows || []).forEach((row) => { map[row.date + '|' + row.studentId] = row.status; });
+          rows.forEach((row) => { map[row.date + '|' + row.studentId] = row.status; });
           setAtt(map);
           setLoading(false);
         }).catch(() => { if (!aborted) { toast.show('네트워크 오류'); setLoading(false); } });
@@ -634,10 +715,72 @@
       if (loading) return <div className="loading">불러오는 중…</div>;
       if (!students || students.length === 0) return <div className="loading">학생이 없습니다.</div>;
 
-      // Sort by name (Korean locale) for predictable scanning.
-      const sortedStudents = [...students].sort(function(a, b){
-        return String(a['이름'] || '').localeCompare(String(b['이름'] || ''), 'ko');
+      // ── M4/M5 계산: 학생별 마지막 출석일 + 최근 3주 연속 결석 ──
+      // rowsByStudent[id] = 그 학생의 모든 row를 date desc 정렬
+      const rowsByStudent = {};
+      attRows.forEach(function(r){
+        (rowsByStudent[r.studentId] = rowsByStudent[r.studentId] || []).push(r);
       });
+      Object.keys(rowsByStudent).forEach(function(id){
+        rowsByStudent[id].sort(function(a,b){ return a.date < b.date ? 1 : (a.date > b.date ? -1 : 0); });
+      });
+
+      function lastAttendedOf(id) {
+        const rs = rowsByStudent[id] || [];
+        for (let i = 0; i < rs.length; i++) {
+          if (PRESENT_CODES.indexOf(rs[i].status) >= 0) return rs[i].date;
+        }
+        return null;
+      }
+      function isStreakAbsent(id) {
+        const rs = rowsByStudent[id] || [];
+        if (rs.length < 3) return false;
+        return rs[0].status === 'ABSENT' && rs[1].status === 'ABSENT' && rs[2].status === 'ABSENT';
+      }
+      function daysSince(iso) {
+        if (!iso) return null;
+        const a = new Date(iso + 'T00:00:00');
+        const b = new Date(todayISO() + 'T00:00:00');
+        const diff = Math.round((b - a) / 86400000);
+        return diff >= 0 ? diff : null;
+      }
+      function shortDate(iso) {
+        if (!iso) return '';
+        const parts = iso.split('-');
+        return parts.length === 3 ? (parts[1] + '/' + parts[2]) : iso;
+      }
+      function gradeOrder(g) {
+        // 중1<중2<중3<고1<고2<고3<기타
+        const map = { '중1':1,'중2':2,'중3':3,'고1':4,'고2':5,'고3':6 };
+        return map[g] || 99;
+      }
+
+      // ── M2 정렬·필터 적용 ──
+      let view = students.slice();
+      if (filterBy === 'unmarked') {
+        view = view.filter(function(s){ return !att[date + '|' + s.id]; });
+      } else if (filterBy === 'streak') {
+        view = view.filter(function(s){ return isStreakAbsent(s.id); });
+      }
+      if (sortBy === 'name') {
+        view.sort(function(a,b){ return String(a['이름']||'').localeCompare(String(b['이름']||''), 'ko'); });
+      } else if (sortBy === 'grade') {
+        view.sort(function(a,b){
+          const d = gradeOrder(a['학년']) - gradeOrder(b['학년']);
+          return d !== 0 ? d : String(a['이름']||'').localeCompare(String(b['이름']||''), 'ko');
+        });
+      } else if (sortBy === 'lastAtt') {
+        view.sort(function(a,b){
+          const la = lastAttendedOf(a.id) || '';
+          const lb = lastAttendedOf(b.id) || '';
+          if (la === lb) return String(a['이름']||'').localeCompare(String(b['이름']||''), 'ko');
+          return la < lb ? 1 : -1; // recent first
+        });
+      }
+
+      // counts for filter chips
+      const unmarkedCount = students.filter(function(s){ return !att[date + '|' + s.id]; }).length;
+      const streakCount   = students.filter(function(s){ return isStreakAbsent(s.id); }).length;
 
       return (
         <>
@@ -654,13 +797,51 @@
                 onClick={() => bulkSet(opt.code)}>{opt.label}</button>
             ))}
           </div>
-          {sortedStudents.map((s) => {
+          <div className="filter-bar" role="toolbar" aria-label="명단 필터·정렬">
+            <button className={'filter-chip' + (filterBy === 'all' ? ' active' : '')}
+              onClick={() => setFilterBy('all')}>전체<span className="count">{students.length}</span></button>
+            <button className={'filter-chip' + (filterBy === 'unmarked' ? ' active' : '')}
+              onClick={() => setFilterBy('unmarked')}>미체크<span className="count">{unmarkedCount}</span></button>
+            <button className={'filter-chip' + (filterBy === 'streak' ? ' active' : '')}
+              onClick={() => setFilterBy('streak')}>⚠ 3주결석<span className="count">{streakCount}</span></button>
+            <span className="filter-sep"></span>
+            <button className={'filter-chip' + (sortBy === 'name' ? ' active' : '')}
+              onClick={() => setSortBy('name')}>이름순</button>
+            <button className={'filter-chip' + (sortBy === 'grade' ? ' active' : '')}
+              onClick={() => setSortBy('grade')}>학년순</button>
+            <button className={'filter-chip' + (sortBy === 'lastAtt' ? ' active' : '')}
+              onClick={() => setSortBy('lastAtt')}>최근출석순</button>
+          </div>
+          {view.length === 0 && (
+            <div className="loading" style={{padding:24}}>
+              {filterBy === 'unmarked' ? '모두 체크되었습니다 🎉'
+                : filterBy === 'streak' ? '3주 연속 결석한 학생이 없습니다 🎉'
+                : '학생이 없습니다.'}
+            </div>
+          )}
+          {view.map((s) => {
             const cur = att[date + '|' + s.id];
+            const last = lastAttendedOf(s.id);
+            const days = daysSince(last);
+            const lastClass = days === null ? '' : (days <= 7 ? 'recent' : (days >= 21 ? 'stale' : ''));
+            const streak = isStreakAbsent(s.id);
             return (
-              <div className="student-card compact" key={s.id} data-status={cur || undefined}>
+              <div className={'student-card compact' + (streak ? ' warn' : '')} key={s.id} data-status={cur || undefined}>
                 <div className="student-info">
-                  <button className="student-name" onClick={() => onOpenDetail(s.id)} style={{textAlign:'left'}}>{s['이름']}</button>
-                  <div className="student-meta">{s['학년']} · {s['성별']}</div>
+                  <button className="student-name" onClick={() => onOpenDetail(s.id)} style={{textAlign:'left'}}>
+                    {s['이름']}
+                    {streak && <span className="warn-badge" title="최근 3개 예배 모두 결석">⚠ 3주</span>}
+                  </button>
+                  <div className="student-meta">
+                    {s['학년']} · {s['성별']}
+                    {last ? (
+                      <span className={'last-att ' + lastClass} title={'마지막 출석: ' + last}>
+                        · {days === 0 ? '오늘' : (days + '일 전')}
+                      </span>
+                    ) : (
+                      <span className="last-att stale" title="올해 출석 기록 없음">· 기록 없음</span>
+                    )}
+                  </div>
                 </div>
                 <div className="student-actions">
                   {STATUS_OPTIONS.map((opt) => (
@@ -778,7 +959,14 @@
               </div>
               {(byStudent[s.id] || []).map((p) => (
                 <div key={p.id} style={{marginTop:8,padding:'10px 12px',background:'var(--fill-normal)',borderRadius:10,display:'flex',gap:8}}>
-                  <div style={{flex:1,whiteSpace:'pre-wrap'}}>{p.text}</div>
+                  <div style={{flex:1}}>
+                    <div style={{whiteSpace:'pre-wrap'}}>{p.text}</div>
+                    {p.createdAt && (
+                      <div className="prayer-meta" title={p.createdAt}>
+                        {relativeDate(p.createdAt)}
+                      </div>
+                    )}
+                  </div>
                   <button onClick={() => setEditing({ id: p.id, studentId: p.studentId, text: p.text })} style={{color:'var(--label-alt)'}}>수정</button>
                   <button onClick={() => remove(p)} style={{color:'var(--status-negative)'}}>삭제</button>
                 </div>
@@ -841,6 +1029,7 @@
     // ──────────────── StatsView ────────────────
     function StatsView({ idToken, toast }) {
       const [data, setData] = useState(null);
+      const [sortBy, setSortBy] = useState('name'); // 'name' | 'pct_desc' | 'pct_asc'
       useEffect(() => {
         Promise.all([callApi('getRoster',{idToken}), callApi('getAttendance',{idToken, year: new Date().getFullYear()})])
           .then(([r,a]) => { if (r.ok && a.ok) setData({ students: r.students, rows: a.rows }); })
@@ -851,25 +1040,79 @@
       const dates = Array.from(new Set(data.rows.map((r) => r.date)));
       if (dates.length === 0) return <div className="loading">올해 출석 기록이 아직 없습니다.</div>;
 
+      // 학생별 출석률 계산
+      const total = dates.length;
+      const perStudent = data.students.map(function(s){
+        const mine = data.rows.filter(function(r){ return r.studentId === s.id; });
+        const present = mine.filter(function(r){ return PRESENT_CODES.indexOf(r.status) >= 0; }).length;
+        const pct = total > 0 ? Math.round((present / total) * 100) : 0;
+        return { s: s, present: present, pct: pct };
+      });
+
+      // 반 평균
+      const avgPct = perStudent.length > 0
+        ? Math.round(perStudent.reduce(function(acc, x){ return acc + x.pct; }, 0) / perStudent.length)
+        : 0;
+      const riskCount = perStudent.filter(function(x){ return x.pct < 50; }).length;
+      const goodCount = perStudent.filter(function(x){ return x.pct >= 80; }).length;
+
+      // 최근 주 출석률 (가장 최근 date 한 회의 P2/P3/P4 비율)
+      const latestDate = dates.slice().sort().reverse()[0];
+      const latestRows = data.rows.filter(function(r){ return r.date === latestDate; });
+      const latestPresent = latestRows.filter(function(r){ return PRESENT_CODES.indexOf(r.status) >= 0; }).length;
+      const latestPct = data.students.length > 0
+        ? Math.round((latestPresent / data.students.length) * 100) : 0;
+
+      // 정렬
+      let view = perStudent.slice();
+      if (sortBy === 'name') {
+        view.sort(function(a,b){ return String(a.s['이름']||'').localeCompare(String(b.s['이름']||''),'ko'); });
+      } else if (sortBy === 'pct_desc') {
+        view.sort(function(a,b){ return b.pct - a.pct; });
+      } else if (sortBy === 'pct_asc') {
+        view.sort(function(a,b){ return a.pct - b.pct; });
+      }
+
       return (
         <>
-          <div style={{padding:'12px 16px',fontSize:13,color:'var(--label-alt)'}}>올해 예배 횟수: {dates.length}회</div>
-          {data.students.map((s) => {
-            const mine = data.rows.filter((r) => r.studentId === s.id);
-            // present = attended any service (P2/P3/P4), excludes ETC/ABSENT
-            const present = mine.filter((r) => PRESENT_CODES.includes(r.status)).length;
-            const total = dates.length;
-            const pct = total > 0 ? Math.round((present / total) * 100) : 0;
+          {/* 반 요약 카드 */}
+          <div className="stats-summary">
+            <div className="stats-summary-title">올해 반 평균 출석률</div>
+            <div className="stats-summary-row">
+              <span className="big">{avgPct}%</span>
+              <span className="sub">({total}회 예배 · 학생 {data.students.length}명)</span>
+            </div>
+            <div className="stats-summary-meta">
+              최근 예배({latestDate}): <strong>{latestPresent}/{data.students.length}명</strong> 출석 · {latestPct}%
+              {' · '}양호(80%↑): <strong>{goodCount}명</strong>
+              {' · '}위험(50%↓): <strong style={{color:'var(--status-negative)'}}>{riskCount}명</strong>
+            </div>
+          </div>
+
+          {/* 정렬 칩 */}
+          <div className="filter-bar" role="toolbar" aria-label="통계 정렬">
+            <span className="bulk-label">정렬</span>
+            <button className={'filter-chip' + (sortBy === 'name' ? ' active' : '')}
+              onClick={() => setSortBy('name')}>이름순</button>
+            <button className={'filter-chip' + (sortBy === 'pct_desc' ? ' active' : '')}
+              onClick={() => setSortBy('pct_desc')}>출석률 ↓</button>
+            <button className={'filter-chip' + (sortBy === 'pct_asc' ? ' active' : '')}
+              onClick={() => setSortBy('pct_asc')}>출석률 ↑</button>
+          </div>
+
+          {/* 학생별 progress bar */}
+          {view.map(function(x){
+            const cls = x.pct < 50 ? 'risk' : (x.pct >= 80 ? 'good' : '');
             return (
-              <div key={s.id} className="student-card">
-                <div style={{flex:1}}>
-                  <div className="student-name">{s['이름']}</div>
-                  <div className="att-summary">
-                    <span className="big-num">{present}</span>
-                    <span className="big-num-label">/ {total}회</span>
-                    <span className="ratio">{pct}%</span>
-                  </div>
+              <div key={x.s.id} className={'stat-bar-card ' + cls}>
+                <div className="stat-bar-head">
+                  <span className="stat-bar-name">{x.s['이름']}</span>
+                  <span className="stat-bar-pct">{x.pct}%</span>
                 </div>
+                <div className="stat-bar-track">
+                  <div className="stat-bar-fill" style={{width: Math.max(2, x.pct) + '%'}}></div>
+                </div>
+                <div className="stat-bar-meta">{x.present} / {total}회 출석 · {x.s['학년']}</div>
               </div>
             );
           })}
