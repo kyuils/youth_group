@@ -40,7 +40,7 @@ function doPost(e) {
 
 // Build tag — bumped whenever code is materially changed. Lets us check
 // whether the deployment captured the latest IDE snapshot by hitting GET /exec.
-const BUILD_TAG = 'v1.1.6-none-status-undo';
+const BUILD_TAG = 'v1.1.7-perf-smartread-tokcache';
 
 function doGet(e) {
   // Health check only. The HTML is hosted on GitHub Pages.
