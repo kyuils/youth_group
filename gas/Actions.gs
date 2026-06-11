@@ -93,6 +93,9 @@ function handleGetAttendance(body) {
       const y = ds.length >= 4 ? Number(ds.substring(0, 4)) : 0;
       return y === year;
     })
+    // Skip cleared rows (status '') left behind by NONE/undo — they must not
+    // count as a 예배 date in stats/records.
+    .filter((r) => String(r['상태'] || '').trim() !== '')
     .map((r) => ({
       date: formatDate_(r['날짜']),
       studentId: String(r['학생id']),
@@ -129,7 +132,8 @@ function handleSetAttendance(body) {
   if (!date || !studentId || status === undefined) {
     return { ok: false, code: 'bad_request' };
   }
-  if (VALID_STATUSES.indexOf(status) < 0) {
+  // 'NONE' clears the record (bulk-undo for rows that had no prior status).
+  if (VALID_STATUSES.indexOf(status) < 0 && status !== 'NONE') {
     return { ok: false, code: 'bad_request', message: 'invalid status: ' + status };
   }
   const student = findStudentById_(studentId);
@@ -169,7 +173,7 @@ function handleSetAttendanceBatch(body) {
   // Pre-validate every item before writing anything. Atomic refusal on any cross-class id.
   const resolved = [];
   for (const it of items) {
-    if (VALID_STATUSES.indexOf(it.status) < 0) {
+    if (VALID_STATUSES.indexOf(it.status) < 0 && it.status !== 'NONE') {
       return { ok: false, code: 'bad_request', message: 'invalid status: ' + it.status };
     }
     const s = findStudentById_(it.studentId);
@@ -229,6 +233,9 @@ function upsertAttendance_({ date, studentId, studentName, teacher, status, etcT
     cache.put(idxKey, JSON.stringify(idx), 21600); // 6h
   }
   const now = new Date().toISOString();
+  // 'NONE' keeps the row (ATT_IDX row numbers stay valid — no deletion) but
+  // clears the status; reads filter out blank-status rows.
+  if (status === 'NONE') { status = ''; etcText = ''; }
   // 8-column order: 날짜, 학생id, 학생이름, 반, 상태, 기타내용, 기록자email, 기록시각
   // sanitizeCell_ on free-text etcText to neutralize formula injection.
   const values = [date, String(studentId), studentName, teacher, status, sanitizeCell_(etcText || ''), recorder, now];
@@ -465,6 +472,7 @@ function handleGetAllAttendance(body) {
       const y = ds.length >= 4 ? Number(ds.substring(0, 4)) : 0;
       return y === year;
     })
+    .filter((r) => String(r['상태'] || '').trim() !== '')
     .map((r) => ({
       date: formatDate_(r['날짜']),
       studentId: String(r['학생id']),
