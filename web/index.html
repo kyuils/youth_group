@@ -5,6 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#0066FF">
   <title>혜림교회 청소년부 출석부</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="청소년부 출석">
+  <script>
+    // 첫 페인트 전에 저장된 테마 적용 (FOUC 방지)
+    try { if (localStorage.getItem('theme') === 'dark') document.documentElement.setAttribute('data-theme', 'dark'); } catch (e) {}
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js" crossorigin></script>
@@ -281,7 +290,8 @@
       transition:border-color 150ms ease, background 150ms ease;
     }
     .student-card.compact{padding:var(--space-10) var(--space-12);margin:var(--space-6) var(--space-12);gap:var(--space-10)}
-    .student-card.compact .student-info{flex:0 0 80px;min-width:80px;max-width:96px}
+    /* 이름 칸: 내용 길이에 맞춰 72~120px 유연 — 5자 이상 이름 줄바꿈 방지 */
+    .student-card.compact .student-info{flex:0 1 auto;min-width:72px;max-width:120px}
     .student-card.compact .student-name{font-size:var(--type-label1-size);line-height:1.2}
     .student-card.compact .student-meta{font-size:var(--type-caption2-size);margin-top:1px}
     .student-card.compact .student-actions{flex:1;gap:var(--space-4);justify-content:flex-end}
@@ -304,9 +314,12 @@
       border:1.5px solid var(--semantic-line-solid-normal);
       background:var(--semantic-background-normal-normal);
       color:var(--semantic-label-neutral);
+      display:inline-flex;align-items:center;justify-content:center;
+      min-height:34px; /* 터치 타겟 확보 (M2) */
       transition:background 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
     }
-    .pill.compact{padding:var(--space-4) 7px;font-size:var(--type-caption2-size);border-width:1px;letter-spacing:-0.02em}
+    /* compact도 시각 크기는 작게 유지하되 터치 높이는 30px 이상 확보 (M2) */
+    .pill.compact{padding:7px 9px;min-height:30px;font-size:var(--type-caption2-size);border-width:1px;letter-spacing:-0.02em}
     .pill:hover{background:var(--semantic-fill-normal)}
     .pill.active.P2    {background:color-mix(in srgb, var(--att-p2) 14%, transparent);    border-color:var(--att-p2);    color:var(--att-p2-fg);    box-shadow:0 0 0 1px color-mix(in srgb, var(--att-p2) 18%, transparent)}
     .pill.active.P3    {background:color-mix(in srgb, var(--att-p3) 12%, transparent);    border-color:var(--att-p3);    color:var(--att-p3-fg);    box-shadow:0 0 0 1px color-mix(in srgb, var(--att-p3) 15%, transparent)}
@@ -337,6 +350,7 @@
     /* ====== CHECK PILL (새가족부 양육) ====== */
     .check-pill{
       display:inline-flex;align-items:center;gap:var(--space-4);
+      min-height:32px; /* 터치 타겟 (M2) */
       padding:var(--space-6) var(--space-10);border-radius:var(--radius-pill);
       font-size:var(--type-caption1-size);font-weight:var(--weight-bold-text);
       border:1.5px solid var(--semantic-line-solid-normal);
@@ -371,10 +385,12 @@
       padding-bottom:env(safe-area-inset-bottom);scrollbar-width:none;
     }
     .bottomnav::-webkit-scrollbar{display:none}
+    /* 탭이 6개여도 360px 폰에서 잘리지 않게 균등 분배 (M4) */
     .bottomnav button{
-      flex:0 0 auto;min-width:64px;padding:var(--space-10) var(--space-12);
+      flex:1 1 0;min-width:0;padding:var(--space-10) var(--space-4);
       font-size:var(--type-caption2-size);letter-spacing:var(--type-caption2-tracking);
       color:var(--semantic-label-alternative);white-space:nowrap;
+      overflow:hidden;text-overflow:ellipsis;
       transition:color 150ms ease;
     }
     .bottomnav button.active{color:var(--semantic-primary-normal);font-weight:var(--weight-bold-text)}
@@ -455,12 +471,13 @@
       background:var(--semantic-background-normal-normal);
     }
     .filter-chip{
-      padding:5px var(--space-12);border-radius:var(--radius-pill);
+      padding:6px var(--space-12);border-radius:var(--radius-pill);
       font-size:var(--type-caption1-size);letter-spacing:var(--type-caption1-tracking);
       font-weight:var(--weight-bold-text);
       background:var(--semantic-fill-normal);
       color:var(--semantic-label-alternative);
       border:1px solid transparent;cursor:pointer;
+      display:inline-flex;align-items:center;min-height:30px; /* 터치 타겟 (M2) */
       transition:background 150ms ease, color 150ms ease, border-color 150ms ease;
     }
     .filter-chip.active{
@@ -535,6 +552,42 @@
     .stat-bar-card.good .stat-bar-fill{background:var(--semantic-status-positive)}
     .stat-bar-meta{font-size:var(--type-caption2-size);color:var(--semantic-label-alternative);margin-top:var(--space-4)}
 
+    /* ============================================================
+       UX round 2 — H1/H2/M3 + Low (undo, 다크토글, 만료안내, 주이동)
+       ============================================================ */
+
+    /* 일괄 적용 실행취소 바 */
+    .undo-bar{
+      margin:var(--space-4) var(--space-12);
+      padding:var(--space-6) var(--space-8) var(--space-6) var(--space-12);
+      border-radius:var(--radius-lg);
+      background:var(--semantic-fill-normal);
+      display:flex;align-items:center;gap:var(--space-8);
+      font-size:var(--type-label2-size);letter-spacing:var(--type-label2-tracking);
+    }
+    .undo-bar span{flex:1;color:var(--semantic-label-neutral);min-width:0}
+
+    /* 세션 만료 안내 (로그인 화면) */
+    .login-notice{
+      padding:var(--space-8) var(--space-14);
+      border-radius:var(--radius-md);
+      background:color-mix(in srgb, var(--semantic-status-cautionary) 10%, transparent);
+      color:var(--semantic-accent-fg-orange);
+      font-size:var(--type-label2-size);font-weight:var(--weight-bold-text);
+    }
+
+    /* 예배 날짜 + 주 단위 점프 (M3) */
+    .date-row{display:flex;gap:var(--space-6);align-items:stretch;margin-top:var(--space-4)}
+    .date-row .btn.sm{flex-shrink:0;height:auto;min-height:38px}
+
+    /* 앱바 아이콘 버튼 (다크모드 토글) */
+    .icon-btn{
+      width:36px;height:36px;border-radius:var(--radius-md);
+      display:inline-flex;align-items:center;justify-content:center;
+      color:var(--semantic-label-alternative);flex-shrink:0;
+      transition:background 150ms ease, color 150ms ease;
+    }
+    .icon-btn:hover{background:var(--semantic-fill-normal);color:var(--semantic-label-normal)}
     </style>
 </head>
 <body>
@@ -549,7 +602,36 @@
     const { useState, useEffect, useCallback, useMemo, useRef } = React;
 
     // ──────────────── API client ────────────────
+    // 클라이언트 읽기 캐시 — 탭 전환 시 재요청을 막아 즉시 화면 전환 (M1).
+    // 쓰기 액션이 성공하면 관련 읽기 캐시를 무효화한다.
+    const apiCache = new Map(); // key → { t, json }
+    const READ_TTL_MS = 2 * 60 * 1000; // 2분 (서버 캐시 5분보다 짧게)
+    const READ_ACTIONS = ['getRoster','getAttendance','getPrayers','getNewcomers',
+      'getAllRosters','getAllAttendance','getAllPrayers','getStudentDetail'];
+    const WRITE_INVALIDATES = {
+      setAttendance:      ['getAttendance','getAllAttendance','getNewcomers'],
+      setAttendanceBatch: ['getAttendance','getAllAttendance','getNewcomers'],
+      setPrayer:          ['getPrayers','getAllPrayers'],
+      addNewcomer:        ['getNewcomers','getAllRosters'],
+      setNewcomerProgress:['getNewcomers'],
+      graduate:           ['getNewcomers','getRoster','getAllRosters','getAttendance','getAllAttendance','getStudentDetail'],
+    };
+    function invalidateApiCache(prefixes) {
+      Array.from(apiCache.keys()).forEach((k) => {
+        if (prefixes.some((p) => k.indexOf(p + '|') === 0)) apiCache.delete(k);
+      });
+    }
+    function clearApiCache() { apiCache.clear(); }
+
     async function callApi(action, payload) {
+      // 캐시 키에 idToken은 제외 (세션당 단일 사용자, 로그아웃 시 전체 clear)
+      const cacheKey = READ_ACTIONS.indexOf(action) >= 0
+        ? action + '|' + JSON.stringify({ ...payload, idToken: undefined })
+        : null;
+      if (cacheKey) {
+        const hit = apiCache.get(cacheKey);
+        if (hit && Date.now() - hit.t < READ_TTL_MS) return hit.json;
+      }
       const body = JSON.stringify({ action, ...payload });
       const res = await fetch(window.APP_CONFIG.GAS_URL, {
         method: 'POST',
@@ -559,7 +641,15 @@
       if (!res.ok) throw new Error('네트워크 오류 ' + res.status);
       const json = await res.json();
       if (json && json.ok === false && (json.code === 'token_expired' || json.code === 'invalid_token')) {
+        // 토큰 만료(구글 ID Token ~1시간): 저장소·캐시를 비우고 로그인 화면으로
+        // 전환하도록 알림 (H2 — 만료 후 무한 저장실패 루프 방지)
         sessionStorage.removeItem('idToken');
+        clearApiCache();
+        window.dispatchEvent(new CustomEvent('app:session-expired'));
+      }
+      if (json && json.ok) {
+        if (cacheKey) apiCache.set(cacheKey, { t: Date.now(), json });
+        if (WRITE_INVALIDATES[action]) invalidateApiCache(WRITE_INVALIDATES[action]);
       }
       return json;
     }
@@ -568,7 +658,15 @@
     function useGoogleAuth() {
       const [idToken, setIdToken] = useState(() => sessionStorage.getItem('idToken') || null);
       const [ready, setReady] = useState(false);
+      const [expired, setExpired] = useState(false);
       const containerRef = useRef(null);
+
+      // 토큰 만료 감지(callApi에서 발행) → 즉시 로그인 화면으로 전환 (H2)
+      useEffect(() => {
+        const onExpired = () => { setExpired(true); setIdToken(null); };
+        window.addEventListener('app:session-expired', onExpired);
+        return () => window.removeEventListener('app:session-expired', onExpired);
+      }, []);
 
       useEffect(() => {
         let cancelled = false;
@@ -587,6 +685,7 @@
             callback: (resp) => {
               if (resp && resp.credential) {
                 sessionStorage.setItem('idToken', resp.credential);
+                setExpired(false);
                 setIdToken(resp.credential);
               }
             },
@@ -607,11 +706,13 @@
 
       const signOut = useCallback(() => {
         sessionStorage.removeItem('idToken');
+        clearApiCache(); // 공유 기기에서 PII가 메모리 캐시에 남지 않도록
+        setExpired(false);
         setIdToken(null);
         if (window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect();
       }, []);
 
-      return { idToken, ready, containerRef, signOut };
+      return { idToken, ready, expired, containerRef, signOut };
     }
 
     // ──────────────── Helpers ────────────────
@@ -622,6 +723,17 @@
       const m = String(kst.getUTCMonth()+1).padStart(2,'0');
       const dd = String(kst.getUTCDate()).padStart(2,'0');
       return `${y}-${m}-${dd}`;
+    }
+
+    // Shift an ISO date by n days — 주 단위 날짜 점프(◀ 지난주/다음주 ▶)용.
+    function shiftDays(iso, n) {
+      const d = new Date(iso + 'T00:00:00');
+      if (isNaN(d.getTime())) return todayISO();
+      d.setDate(d.getDate() + n);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return y + '-' + m + '-' + dd;
     }
 
     // Relative time for prayer createdAt etc. Accepts 'YYYY-MM-DD' or
@@ -687,9 +799,10 @@
     }
 
     // ──────────────── Login / Error screens ────────────────
-    function LoginScreen({ containerRef }) {
+    function LoginScreen({ containerRef, notice }) {
       return (
         <div className="login">
+          {notice && <div className="login-notice" role="alert">{notice}</div>}
           <div className="login-brand">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
               <circle cx="12" cy="12" r="10" fill="#E8F0FE" stroke="#0066FF" strokeWidth="1.5"/>
@@ -793,7 +906,14 @@
         return () => { aborted = true; };
       }, [auth.idToken, auth.signOut]);
 
-      if (!auth.idToken) return <div className="app"><LoginScreen containerRef={auth.containerRef} /></div>;
+      if (!auth.idToken) {
+        return (
+          <div className="app">
+            <LoginScreen containerRef={auth.containerRef}
+              notice={auth.expired ? '로그인이 만료되었습니다. 다시 로그인해 주세요.' : null} />
+          </div>
+        );
+      }
       if (authError && authError.code === 'unauthorized') {
         return <div className="app"><UnauthorizedScreen email={authError.email} onSignOut={auth.signOut} /></div>;
       }
@@ -833,6 +953,16 @@
       const [date, setDate] = useState(todayISO());
       const [detailId, setDetailId] = useState(null);
       const toast = useToast();
+      const [theme, setTheme] = useState(() => {
+        try { return localStorage.getItem('theme') === 'dark' ? 'dark' : 'light'; } catch (e) { return 'light'; }
+      });
+      const toggleTheme = () => {
+        const next = theme === 'dark' ? 'light' : 'dark';
+        setTheme(next);
+        try { localStorage.setItem('theme', next); } catch (e) {}
+        if (next === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+        else document.documentElement.removeAttribute('data-theme');
+      };
 
       const TABS = useMemo(() => {
         const base = [['roster','출석'],['prayer','기도제목'],['records','기록'],['stats','통계']];
@@ -853,6 +983,20 @@
                 <div className="sub">청소년부 · {roleLabel(me)}</div>
                 <div className="main">{me.teacher ? me.teacher + ' 반' : me.email}</div>
               </div>
+              <button className="icon-btn" onClick={toggleTheme}
+                aria-label={theme === 'dark' ? '라이트 모드로 전환' : '다크 모드로 전환'}
+                title={theme === 'dark' ? '라이트 모드' : '다크 모드'}>
+                {theme === 'dark' ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="2"/>
+                    <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                )}
+              </button>
               <button className="btn ghost" onClick={onSignOut} style={{height:36,fontSize:13}}>로그아웃</button>
             </div>
           </div>
@@ -882,10 +1026,21 @@
       const [att, setAtt] = useState({});
       const [attRows, setAttRows] = useState([]); // raw rows for last-attended & streak
       const [loading, setLoading] = useState(true);
-      const [pendingEtc, setPendingEtc] = useState(null); // { studentId, status, prevStatus }
+      const [pendingEtc, setPendingEtc] = useState(null); // { studentId?, status, bulk?, count? }
       const [bulkBusy, setBulkBusy] = useState(false);
+      const [lastBulk, setLastBulk] = useState(null); // { label, snapshot:[{studentId, prevStatus}] } — 실행취소용
       const [sortBy, setSortBy] = useState('name');    // 'name' | 'grade' | 'lastAtt'
       const [filterBy, setFilterBy] = useState('all'); // 'all' | 'unmarked' | 'streak'
+
+      // 실행취소 바는 20초 후 자동 닫힘
+      useEffect(() => {
+        if (!lastBulk) return;
+        const t = setTimeout(() => setLastBulk(null), 20000);
+        return () => clearTimeout(t);
+      }, [lastBulk]);
+
+      // 날짜를 바꾸면 실행취소 무효 — 다른 날짜에 복원되는 사고 방지
+      useEffect(() => { setLastBulk(null); }, [date]);
 
       useEffect(() => {
         let aborted = false;
@@ -948,30 +1103,126 @@
 
       const handleEtcSave = (text) => {
         if (!pendingEtc) return;
-        saveAttendance(pendingEtc.studentId, pendingEtc.status, text || '');
+        if (pendingEtc.bulk) applyBulk(pendingEtc.status, text || '');
+        else saveAttendance(pendingEtc.studentId, pendingEtc.status, text || '');
         setPendingEtc(null);
       };
       const handleEtcCancel = () => setPendingEtc(null);
 
-      // Bulk attendance: apply same status to every student in the class.
-      const bulkSet = (status) => {
-        if (!students || students.length === 0) return;
-        const label = STATUS_OPTIONS.find(function(o){return o.code === status;});
+      // 일괄 출석: 현재 화면에 보이는(필터된) 학생에게만 적용 (H1).
+      // getVisibleStudents는 아래에서 function 선언으로 호이스팅됨.
+      const applyBulk = (status, etcText) => {
+        const targets = getVisibleStudents();
+        if (targets.length === 0) return;
+        const label = STATUS_OPTIONS.find(function(o){ return o.code === status; });
         const labelText = label ? label.label : status;
-        if (!window.confirm('반 전체 ' + students.length + '명을 \'' + labelText + '\'로 일괄 표시할까요?')) return;
         setBulkBusy(true);
-        const items = students.map(function(s){ return { studentId: s.id, status: status, etcText: '' }; });
+        // 실행취소용 스냅샷 — 적용 직전 상태 (etcText는 클라이언트에 없어 복원 제외)
+        const snapshot = targets.map(function(s){
+          return { studentId: s.id, prevStatus: att[date + '|' + s.id] || null };
+        });
+        const items = targets.map(function(s){ return { studentId: s.id, status: status, etcText: etcText || '' }; });
+        const rollback = function(){
+          setAtt(function(m){
+            const next = { ...m };
+            snapshot.forEach(function(x){
+              if (x.prevStatus) next[date + '|' + x.studentId] = x.prevStatus;
+              else delete next[date + '|' + x.studentId];
+            });
+            return next;
+          });
+        };
         // optimistic
         setAtt(function(m){
           const next = { ...m };
-          students.forEach(function(s){ next[date + '|' + s.id] = status; });
+          targets.forEach(function(s){ next[date + '|' + s.id] = status; });
           return next;
         });
         callApi('setAttendanceBatch', { idToken, date, items })
           .then(function(r){
             setBulkBusy(false);
-            if (r.ok) toast.show((r.written || items.length) + '명 ' + labelText + ' 처리됨');
-            else toast.show('일괄 저장 실패: ' + (r.code || ''));
+            if (r.ok) {
+              toast.show((r.written || items.length) + '명 ' + labelText + ' 처리됨');
+              setLastBulk({ label: labelText, snapshot: snapshot });
+            } else {
+              rollback();
+              toast.show('일괄 저장 실패: ' + (r.code || ''));
+            }
+          })
+          .catch(function(){ setBulkBusy(false); rollback(); toast.show('네트워크 오류'); });
+      };
+
+      const bulkSet = (status) => {
+        const targets = getVisibleStudents();
+        if (targets.length === 0) { toast.show('적용할 학생이 없습니다'); return; }
+        // 기타/결석은 사유를 한 번 입력받아 전원에게 적용 (M5) — 입력 시트가 확인 역할
+        if (status === 'ETC' || status === 'ABSENT') {
+          setPendingEtc({ bulk: true, status: status, count: targets.length });
+          return;
+        }
+        const label = STATUS_OPTIONS.find(function(o){ return o.code === status; });
+        const scope = filterBy === 'all' ? '반 전체' : '표시된';
+        if (!window.confirm(scope + ' ' + targets.length + '명을 \'' + (label ? label.label : status) + '\'로 일괄 표시할까요?')) return;
+        applyBulk(status, '');
+      };
+
+      // 일괄 실행취소 — 이전 상태 복원. 기록이 없던 학생은 'NONE'으로 지움
+      // (구버전 서버가 NONE을 거부하면 이전 기록이 있던 학생만 복원).
+      const undoBulk = () => {
+        if (!lastBulk || bulkBusy) return;
+        const snap = lastBulk.snapshot;
+        setLastBulk(null);
+        setBulkBusy(true);
+        const items = snap.map(function(x){
+          return { studentId: x.studentId, status: x.prevStatus || 'NONE', etcText: '' };
+        });
+        const applyLocal = function(){
+          setAtt(function(m){
+            const next = { ...m };
+            snap.forEach(function(x){
+              if (x.prevStatus) next[date + '|' + x.studentId] = x.prevStatus;
+              else delete next[date + '|' + x.studentId];
+            });
+            return next;
+          });
+        };
+        callApi('setAttendanceBatch', { idToken, date, items })
+          .then(function(r){
+            if (r.ok) {
+              applyLocal();
+              setBulkBusy(false);
+              toast.show('실행취소 완료 (' + items.length + '명)');
+              return null;
+            }
+            if (r.code === 'bad_request') {
+              // 구버전 서버: NONE 미지원 → 복원 가능한 학생만 재시도
+              const restorable = snap
+                .filter(function(x){ return x.prevStatus; })
+                .map(function(x){ return { studentId: x.studentId, status: x.prevStatus, etcText: '' }; });
+              const skipped = snap.length - restorable.length;
+              if (restorable.length === 0) {
+                setBulkBusy(false);
+                toast.show('되돌릴 이전 기록이 없습니다 (GAS 업데이트 필요)');
+                return null;
+              }
+              return callApi('setAttendanceBatch', { idToken, date, items: restorable })
+                .then(function(r2){
+                  setBulkBusy(false);
+                  if (r2.ok) {
+                    setAtt(function(m){
+                      const next = { ...m };
+                      restorable.forEach(function(it){ next[date + '|' + it.studentId] = it.status; });
+                      return next;
+                    });
+                    toast.show(restorable.length + '명 복원' + (skipped > 0 ? ' · ' + skipped + '명은 GAS 업데이트 후 가능' : ''));
+                  } else {
+                    toast.show('실행취소 실패: ' + (r2.code || ''));
+                  }
+                });
+            }
+            setBulkBusy(false);
+            toast.show('실행취소 실패: ' + (r.code || ''));
+            return null;
           })
           .catch(function(){ setBulkBusy(false); toast.show('네트워크 오류'); });
       };
@@ -1019,28 +1270,33 @@
         return map[g] || 99;
       }
 
-      // ── M2 정렬·필터 적용 ──
-      let view = students.slice();
-      if (filterBy === 'unmarked') {
-        view = view.filter(function(s){ return !att[date + '|' + s.id]; });
-      } else if (filterBy === 'streak') {
-        view = view.filter(function(s){ return isStreakAbsent(s.id); });
+      // ── M2 정렬·필터 — 일괄 적용(applyBulk)도 이 결과를 쓰므로
+      //    function 선언으로 두어 핸들러에서 호이스팅으로 접근 (H1)
+      function getVisibleStudents() {
+        let v = (students || []).slice();
+        if (filterBy === 'unmarked') {
+          v = v.filter(function(s){ return !att[date + '|' + s.id]; });
+        } else if (filterBy === 'streak') {
+          v = v.filter(function(s){ return isStreakAbsent(s.id); });
+        }
+        if (sortBy === 'name') {
+          v.sort(function(a,b){ return String(a['이름']||'').localeCompare(String(b['이름']||''), 'ko'); });
+        } else if (sortBy === 'grade') {
+          v.sort(function(a,b){
+            const d = gradeOrder(a['학년']) - gradeOrder(b['학년']);
+            return d !== 0 ? d : String(a['이름']||'').localeCompare(String(b['이름']||''), 'ko');
+          });
+        } else if (sortBy === 'lastAtt') {
+          v.sort(function(a,b){
+            const la = lastAttendedOf(a.id) || '';
+            const lb = lastAttendedOf(b.id) || '';
+            if (la === lb) return String(a['이름']||'').localeCompare(String(b['이름']||''), 'ko');
+            return la < lb ? 1 : -1; // recent first
+          });
+        }
+        return v;
       }
-      if (sortBy === 'name') {
-        view.sort(function(a,b){ return String(a['이름']||'').localeCompare(String(b['이름']||''), 'ko'); });
-      } else if (sortBy === 'grade') {
-        view.sort(function(a,b){
-          const d = gradeOrder(a['학년']) - gradeOrder(b['학년']);
-          return d !== 0 ? d : String(a['이름']||'').localeCompare(String(b['이름']||''), 'ko');
-        });
-      } else if (sortBy === 'lastAtt') {
-        view.sort(function(a,b){
-          const la = lastAttendedOf(a.id) || '';
-          const lb = lastAttendedOf(b.id) || '';
-          if (la === lb) return String(a['이름']||'').localeCompare(String(b['이름']||''), 'ko');
-          return la < lb ? 1 : -1; // recent first
-        });
-      }
+      const view = getVisibleStudents();
 
       // counts for filter chips
       const unmarkedCount = students.filter(function(s){ return !att[date + '|' + s.id]; }).length;
@@ -1050,17 +1306,28 @@
         <>
           <div style={{padding:'12px 16px 0'}}>
             <label style={{fontSize:13,color:'var(--label-alt)'}}>예배 날짜</label>
-            <input type="date" value={date} onChange={(e) => onChangeDate(e.target.value)}
-              style={{display:'block',marginTop:4,padding:'8px 12px',border:'1px solid var(--line-solid)',borderRadius:8,font:'inherit',width:'100%'}} />
+            <div className="date-row">
+              <input type="date" value={date} onChange={(e) => onChangeDate(e.target.value)}
+                style={{flex:1,padding:'8px 12px',border:'1px solid var(--line-solid)',borderRadius:8,font:'inherit',minWidth:0,background:'var(--bg)',color:'var(--label-normal)'}} />
+              <button className="btn ghost sm" onClick={() => onChangeDate(shiftDays(date, -7))} aria-label="지난주" title="지난주">◀</button>
+              <button className="btn ghost sm" onClick={() => onChangeDate(todayISO())}>오늘</button>
+              <button className="btn ghost sm" onClick={() => onChangeDate(shiftDays(date, 7))} aria-label="다음주" title="다음주">▶</button>
+            </div>
           </div>
           <div className="bulk-bar">
-            <span className="bulk-label">일괄 표시</span>
+            <span className="bulk-label">일괄 표시{filterBy !== 'all' ? ' (표시된 학생만)' : ''}</span>
             {STATUS_OPTIONS.map((opt) => (
               <button key={opt.code} className="pill compact"
                 disabled={bulkBusy}
                 onClick={() => bulkSet(opt.code)}>{opt.label}</button>
             ))}
           </div>
+          {lastBulk && (
+            <div className="undo-bar">
+              <span>'{lastBulk.label}' 일괄 적용됨 ({lastBulk.snapshot.length}명)</span>
+              <button className="btn ghost sm" onClick={undoBulk} disabled={bulkBusy}>실행취소</button>
+            </div>
+          )}
           <div className="filter-bar" role="toolbar" aria-label="명단 필터·정렬">
             <button className={'filter-chip' + (filterBy === 'all' ? ' active' : '')}
               onClick={() => setFilterBy('all')}>전체<span className="count">{students.length}</span></button>
@@ -1118,7 +1385,9 @@
             );
           })}
           {pendingEtc && (
-            <EtcInputSheet status={pendingEtc.status} onSave={handleEtcSave} onCancel={handleEtcCancel} />
+            <EtcInputSheet status={pendingEtc.status}
+              subtitle={pendingEtc.bulk ? (filterBy === 'all' ? '반 전체' : '표시된') + ' ' + pendingEtc.count + '명에게 일괄 적용됩니다' : null}
+              onSave={handleEtcSave} onCancel={handleEtcCancel} />
           )}
         </>
       );
@@ -1126,7 +1395,7 @@
 
     // Mobile-friendly bottom sheet for entering ETC (외부예배) or ABSENT 사유.
     // Replaces window.prompt for better keyboard handling on phones.
-    function EtcInputSheet({ status, onSave, onCancel }) {
+    function EtcInputSheet({ status, subtitle, onSave, onCancel }) {
       const [value, setValue] = useState('');
       const isEtc = status === 'ETC';
       const title = isEtc ? '외부 예배 입력' : '결석 사유 (선택)';
@@ -1147,6 +1416,9 @@
             <div className="sheet-handle"></div>
             <div style={{padding:'4px 20px 20px'}}>
               <h3 style={{margin:'4px 0 6px',fontSize:17,fontWeight:600}}>{title}</h3>
+              {subtitle && (
+                <p style={{margin:'0 0 6px',fontSize:13,fontWeight:600,color:'var(--primary)'}}>{subtitle}</p>
+              )}
               <p style={{margin:'0 0 12px',fontSize:12,color:'var(--label-alt)',lineHeight:1.45}}>{help}</p>
               <input type="text" autoFocus value={value}
                 onChange={(e) => setValue(e.target.value)}
@@ -1492,22 +1764,30 @@
       useEffect(reload, [reload]);
 
       const todayDate = todayISO();
+      const [pendingEtc, setPendingEtc] = useState(null); // { studentId, status }
 
-      const setAttendance = (studentId, status) => {
-        let etcText = null;
-        if (status === 'ETC') {
-          etcText = window.prompt('외부 예배 장소/사유 (예: 타 교회, 사경회)');
-          if (etcText === null) return;
-        } else if (status === 'ABSENT') {
-          etcText = window.prompt('결석 사유 (선택, 예: 병원, 가족여행)');
-          if (etcText === null) return;
-        }
-        callApi('setAttendance', { idToken, date: todayDate, studentId, status, etcText })
+      const doSaveAttendance = (studentId, status, etcText) => {
+        callApi('setAttendance', { idToken, date: todayDate, studentId, status, etcText: etcText || '' })
           .then((r) => {
             if (r.ok) reload();
             else toast.show('저장 실패: ' + (r.code || ''));
           })
           .catch(() => toast.show('네트워크 오류'));
+      };
+
+      // 출석 탭과 동일한 바텀시트 입력 (H3 — window.prompt 제거, UI 일관성)
+      const setAttendance = (studentId, status) => {
+        if (status === 'ETC' || status === 'ABSENT') {
+          setPendingEtc({ studentId, status });
+          return;
+        }
+        doSaveAttendance(studentId, status, '');
+      };
+
+      const handleEtcSave = (text) => {
+        if (!pendingEtc) return;
+        doSaveAttendance(pendingEtc.studentId, pendingEtc.status, text || '');
+        setPendingEtc(null);
       };
 
       const toggleProgress = (studentId, week, current) => {
@@ -1593,6 +1873,11 @@
               onClose={() => setGraduateTarget(null)}
               onSuccess={() => { setGraduateTarget(null); reload(); }}
             />
+          )}
+
+          {pendingEtc && (
+            <EtcInputSheet status={pendingEtc.status}
+              onSave={handleEtcSave} onCancel={() => setPendingEtc(null)} />
           )}
         </>
       );
