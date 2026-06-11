@@ -621,17 +621,17 @@
         if (prefixes.some((p) => k.indexOf(p + '|') === 0)) apiCache.delete(k);
       });
     }
-    function clearApiCache() { apiCache.clear(); }
+    // 세대 카운터: 로그아웃/만료로 clear된 뒤, 그 이전에 발사된 in-flight 응답이
+    // 캐시에 도로 적재되는 것을 막는다 (공유 기기에서 이전 사용자 명단 노출 방지).
+    let apiCacheGen = 0;
+    function clearApiCache() { apiCache.clear(); apiCacheGen++; }
 
-    async function callApi(action, payload) {
-      // 캐시 키에 idToken은 제외 (세션당 단일 사용자, 로그아웃 시 전체 clear)
-      const cacheKey = READ_ACTIONS.indexOf(action) >= 0
-        ? action + '|' + JSON.stringify({ ...payload, idToken: undefined })
-        : null;
-      if (cacheKey) {
-        const hit = apiCache.get(cacheKey);
-        if (hit && Date.now() - hit.t < READ_TTL_MS) return hit.json;
-      }
+    // 동일 읽기 요청이 동시에 여러 번 나가지 않도록 in-flight promise 공유.
+    // (로그인 직후 prefetch와 RosterView 마운트가 같은 요청을 쏘는 경우 1회만 발사)
+    const apiInflight = new Map(); // key → Promise
+
+    async function callApiRaw_(action, payload, cacheKey) {
+      const genAtStart = apiCacheGen;
       const body = JSON.stringify({ action, ...payload });
       const res = await fetch(window.APP_CONFIG.GAS_URL, {
         method: 'POST',
@@ -648,10 +648,30 @@
         window.dispatchEvent(new CustomEvent('app:session-expired'));
       }
       if (json && json.ok) {
-        if (cacheKey) apiCache.set(cacheKey, { t: Date.now(), json });
+        // 발사 후 로그아웃/만료로 캐시가 비워졌다면 적재하지 않는다.
+        if (cacheKey && genAtStart === apiCacheGen) apiCache.set(cacheKey, { t: Date.now(), json });
         if (WRITE_INVALIDATES[action]) invalidateApiCache(WRITE_INVALIDATES[action]);
       }
       return json;
+    }
+
+    function callApi(action, payload) {
+      // 캐시 키에 idToken은 제외 (세션당 단일 사용자, 로그아웃 시 전체 clear)
+      const cacheKey = READ_ACTIONS.indexOf(action) >= 0
+        ? action + '|' + JSON.stringify({ ...payload, idToken: undefined })
+        : null;
+      if (cacheKey) {
+        const hit = apiCache.get(cacheKey);
+        if (hit && Date.now() - hit.t < READ_TTL_MS) return Promise.resolve(hit.json);
+        const inflight = apiInflight.get(cacheKey);
+        if (inflight) return inflight;
+      }
+      const p = callApiRaw_(action, payload, cacheKey);
+      if (cacheKey) {
+        apiInflight.set(cacheKey, p);
+        p.then(() => apiInflight.delete(cacheKey), () => apiInflight.delete(cacheKey));
+      }
+      return p;
     }
 
     // ──────────────── Google Auth ────────────────
@@ -880,6 +900,11 @@
       useEffect(() => {
         if (!auth.idToken) { setMe(null); setAuthError(null); return; }
         let aborted = false;
+        // whoami를 기다리지 않고 명단·출석을 미리 당겨온다 (병렬 prefetch).
+        // 결과는 apiCache에 적재되어 RosterView 마운트 시 즉시 사용된다.
+        // 권한 없는 계정이면 ok:false라 캐시되지 않으며 조용히 무시된다.
+        callApi('getRoster', { idToken: auth.idToken }).catch(function(){});
+        callApi('getAttendance', { idToken: auth.idToken, year: new Date().getFullYear() }).catch(function(){});
         callApi('whoami', { idToken: auth.idToken })
           .then((r) => {
             if (aborted) return;
