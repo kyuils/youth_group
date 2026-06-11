@@ -10,6 +10,26 @@ function verifyIdToken(idToken) {
     return { ok: false, code: 'server_misconfig', message: 'OAUTH_CLIENT_ID missing' };
   }
 
+  // Cache successful verifications by token digest. The tokeninfo round-trip
+  // costs 200-500ms on EVERY action; the same Google ID token is reused for
+  // ~1h, so a 5-min cache removes that hop from most requests. Only a SHA-256
+  // hash is used as the key — the raw token never enters CacheService. exp is
+  // re-checked on every hit so a token cannot outlive its expiry via cache.
+  const tokCache = CacheService.getScriptCache();
+  let tokKey = null;
+  try {
+    const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, idToken, Utilities.Charset.UTF_8);
+    tokKey = 'TOK_v1_' + Utilities.base64EncodeWebSafe(digest);
+    const hit = tokCache.get(tokKey);
+    if (hit) {
+      const o = JSON.parse(hit);
+      if (Number(o.exp) > Math.floor(Date.now() / 1000)) {
+        return { ok: true, email: o.email, name: o.name || '' };
+      }
+      tokCache.remove(tokKey);
+    }
+  } catch (e) { /* cache failure must never block auth */ }
+
   let info;
   try {
     const res = UrlFetchApp.fetch(
@@ -34,7 +54,13 @@ function verifyIdToken(idToken) {
     return { ok: false, code: 'email_unverified' };
   }
 
-  return { ok: true, email: String(info.email).toLowerCase().trim(), name: info.name || '' };
+  const result = { ok: true, email: String(info.email).toLowerCase().trim(), name: info.name || '' };
+  if (tokKey) {
+    try {
+      tokCache.put(tokKey, JSON.stringify({ email: result.email, name: result.name, exp: Number(info.exp) }), 300);
+    } catch (e) { /* ignore */ }
+  }
+  return result;
 }
 
 // authenticate(body) → { ok, email, teacher, role, title, permissions } | { ok:false, code }
