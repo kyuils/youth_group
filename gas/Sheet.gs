@@ -47,6 +47,36 @@ function readTable_(name) {
   return { headers, rows };
 }
 
+// Phantom-row aware table reader. STUDENTS (ArrayFormula view) carries tens of
+// thousands of blank spill rows, so a full-width read of getLastRow() costs
+// seconds. Read the key column first (1 col), find the true last data row,
+// then read only that many full-width rows (~16x less I/O).
+function readTableSmart_(name, keyHeader) {
+  const sh = getSheet_(name);
+  const lastCol = sh.getLastColumn();
+  if (lastCol < 1) return { headers: [], rows: [] };
+  const headers = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(String);
+  const lastMeta = sh.getLastRow();
+  if (lastMeta < 2) return { headers, rows: [] };
+  const keyIdx = headers.indexOf(keyHeader);
+  let lastData = lastMeta;
+  if (keyIdx >= 0) {
+    const keyVals = sh.getRange(2, keyIdx + 1, lastMeta - 1, 1).getValues();
+    lastData = 1;
+    for (let i = keyVals.length - 1; i >= 0; i--) {
+      if (String(keyVals[i][0] == null ? '' : keyVals[i][0]).trim() !== '') { lastData = i + 2; break; }
+    }
+    if (lastData < 2) return { headers, rows: [] };
+  }
+  const values = sh.getRange(2, 1, lastData - 1, lastCol).getValues();
+  const rows = values.map((row, i) => {
+    const obj = { _rowIndex: i + 2 };
+    headers.forEach((h, j) => obj[h] = row[j]);
+    return obj;
+  });
+  return { headers, rows };
+}
+
 function appendRow_(name, headerOrderedValues) {
   getSheet_(name).appendRow(headerOrderedValues);
 }
@@ -104,13 +134,14 @@ function lookupTeacher(email) {
   };
 }
 
-function listStudentsForTeacher(teacherName, opts) {
+// STUDENTS minimal projection loader — single source for the cached
+// (id/반/이름/학년/성별/active) list. Smart read skips phantom rows, so a
+// cache miss costs one narrow column scan + ~220 full rows instead of 50k.
+function loadStudentsMin_() {
   const cache = CacheService.getScriptCache();
-  // STUDENTS can be large (200+ rows × 15 cols with PII). Cache a minimal
-  // projection that fits well under 100KB rather than the raw rows.
   let minimal = safeCacheGet_(cache, 'STUDENTS_MIN_v2');
   if (!minimal) {
-    const rows = readTable_(SHEET_NAMES.STUDENTS).rows;
+    const rows = readTableSmart_(SHEET_NAMES.STUDENTS, '이름').rows;
     minimal = rows.map((r) => ({
       id: r.id,
       '반': r['반'],
@@ -119,8 +150,14 @@ function listStudentsForTeacher(teacherName, opts) {
       '성별': r['성별'],
       active: r.active,
     }));
-    safeCachePut_(cache, 'STUDENTS_MIN_v2', minimal, 300);
+    // 10 min — writes invalidate via invalidateCache_, so longer TTL is safe.
+    safeCachePut_(cache, 'STUDENTS_MIN_v2', minimal, 600);
   }
+  return minimal;
+}
+
+function listStudentsForTeacher(teacherName, opts) {
+  const minimal = loadStudentsMin_();
   const includeAll = opts && opts.includeAll === true;
   // Filter out blank rows: a row needs both a non-empty 이름 AND a non-empty 반.
   // This prevents phantom rows (sheet pre-allocates blank rows or empty
@@ -133,21 +170,7 @@ function listStudentsForTeacher(teacherName, opts) {
 }
 
 function listNewcomers() {
-  const cache = CacheService.getScriptCache();
-  let minimal = safeCacheGet_(cache, 'STUDENTS_MIN_v2');
-  if (!minimal) {
-    const rows = readTable_(SHEET_NAMES.STUDENTS).rows;
-    minimal = rows.map((r) => ({
-      id: r.id,
-      '반': r['반'],
-      '이름': r['이름'],
-      '학년': r['학년'],
-      '성별': r['성별'],
-      active: r.active,
-    }));
-    safeCachePut_(cache, 'STUDENTS_MIN_v2', minimal, 300);
-  }
-  return minimal.filter((r) =>
+  return loadStudentsMin_().filter((r) =>
     String(r['이름'] || '').trim() !== '' &&
     String(r['반']).trim() === '새가족' &&
     isActive_(r.active)
@@ -299,7 +322,7 @@ function upsertNewcomerProgress_(studentId, week, completed, recorder) {
     }
   }
   // Not found — append new row
-  const student = findStudentById_(studentId);
+  const student = findStudentMinById_(studentId);
   const studentName = student ? String(student['이름'] || '') : '';
   const headers14 = ['학생id','학생이름','1주','2주','3주','4주','1주_날짜','2주_날짜','3주_날짜','4주_날짜','등반일','등반반','기록자email','갱신시각'];
   const newRow = [
@@ -339,7 +362,7 @@ function recordGraduation_(studentId, targetTeacher, recorder) {
     }
   }
   // No progress row yet — create one with graduation info
-  const student = findStudentById_(studentId);
+  const student = findStudentMinById_(studentId);
   const studentName = student ? String(student['이름'] || '') : '';
   sh.appendRow([
     String(studentId), studentName,
@@ -348,9 +371,16 @@ function recordGraduation_(studentId, targetTeacher, recorder) {
   ]);
 }
 
+// Full-row lookup (all PII columns) — only for getStudentDetail.
 function findStudentById_(id) {
-  const all = readTable_(SHEET_NAMES.STUDENTS).rows;
+  const all = readTableSmart_(SHEET_NAMES.STUDENTS, '이름').rows;
   return all.find((r) => String(r.id) === String(id));
+}
+
+// Cached minimal lookup (id/반/이름/학년/성별/active) — for permission checks
+// and attendance writes. Avoids the full-width sheet read on every save.
+function findStudentMinById_(id) {
+  return loadStudentsMin_().find((r) => String(r.id) === String(id)) || null;
 }
 
 function invalidateCache_(keys) {
