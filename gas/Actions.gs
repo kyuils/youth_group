@@ -136,7 +136,8 @@ function handleSetAttendance(body) {
   if (VALID_STATUSES.indexOf(status) < 0 && status !== 'NONE') {
     return { ok: false, code: 'bad_request', message: 'invalid status: ' + status };
   }
-  const student = findStudentById_(studentId);
+  // Minimal cached lookup — attendance write only needs 이름/반, not full PII row.
+  const student = findStudentMinById_(studentId);
   if (!student) return { ok: false, code: 'not_found' };
   // Allow teacher for own class, or newcomer_staff/admin for 새가족 class, or admin for any
   const studentClass = String(student['반']).trim();
@@ -176,7 +177,7 @@ function handleSetAttendanceBatch(body) {
     if (VALID_STATUSES.indexOf(it.status) < 0 && it.status !== 'NONE') {
       return { ok: false, code: 'bad_request', message: 'invalid status: ' + it.status };
     }
-    const s = findStudentById_(it.studentId);
+    const s = findStudentMinById_(it.studentId);
     if (!s) return { ok: false, code: 'not_found', studentId: it.studentId };
     const studentClass = String(s['반']).trim();
     const isOwnClass = studentClass === auth.teacher.trim();
@@ -275,7 +276,7 @@ function handleSetPrayer(body) {
   if (!auth.ok) return auth;
   const { id, studentId, text, active } = body;
   if (!studentId) return { ok: false, code: 'bad_request' };
-  const student = findStudentById_(studentId);
+  const student = findStudentMinById_(studentId);
   if (!student) return { ok: false, code: 'not_found' };
   if (String(student['반']).trim() !== auth.teacher.trim()) {
     logForbidden_(auth, 'setPrayer(student)', body);
@@ -403,7 +404,7 @@ function handleSetNewcomerProgress(body) {
   // Verify the target studentId actually belongs to the 새가족 class.
   // Without this check, a newcomer_staff member could fabricate progress
   // records for any student in any class.
-  const student = findStudentById_(studentId);
+  const student = findStudentMinById_(studentId);
   if (!student) return { ok: false, code: 'not_found' };
   if (String(student['반']).trim() !== '새가족') {
     logForbidden_(auth, 'setNewcomerProgress(not newcomer class)', body);
@@ -429,7 +430,7 @@ function handleGraduate(body) {
     return { ok: false, code: 'bad_request' };
   }
   // Validate: student must be in 새가족 class
-  const student = findStudentById_(studentId);
+  const student = findStudentMinById_(studentId);
   if (!student) return { ok: false, code: 'not_found', message: '학생을 찾을 수 없습니다' };
   if (String(student['반']).trim() !== '새가족') {
     return { ok: false, code: 'bad_request', message: '새가족 학생만 등반할 수 있습니다' };
