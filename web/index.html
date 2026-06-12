@@ -597,6 +597,22 @@
     .week-main{font-weight:700;font-size:16px;color:var(--label-normal)}
     .week-today{border:1px solid var(--line-solid);background:var(--bg);border-radius:9999px;
       padding:5px 12px;font-size:13px;font-weight:600;cursor:pointer;color:var(--label-normal)}
+
+    /* ── v1.2 summary bar ── */
+    .summary-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;
+      padding:10px 16px;cursor:pointer;border-bottom:1px solid var(--line-solid)}
+    .sum-item{font-size:13px;font-weight:600;padding:4px 10px;border-radius:9999px;
+      background:var(--fill-normal);color:var(--label-normal)}
+    .sum-item b{font-weight:800}
+    .sum-item.P2{background:color-mix(in srgb, var(--att-p2) 14%, transparent);color:var(--att-p2-fg)}
+    .sum-item.P3{background:color-mix(in srgb, var(--att-p3) 14%, transparent);color:var(--att-p3-fg)}
+    .sum-item.P4{background:color-mix(in srgb, var(--att-p4) 14%, transparent);color:var(--att-p4-fg)}
+    .sum-item.ETC{background:color-mix(in srgb, var(--att-etc) 14%, transparent);color:var(--att-etc-fg)}
+    .sum-item.ABSENT{background:color-mix(in srgb, var(--att-absent) 14%, transparent);color:var(--att-absent-fg)}
+    .sum-item.unmarked{background:var(--fill-normal)}
+    .sum-item.unmarked.done{background:color-mix(in srgb, var(--att-p2) 18%, var(--bg));color:var(--att-p2-fg)}
+    .done-banner{margin:10px 16px;padding:12px 16px;border-radius:14px;text-align:center;
+      font-weight:700;background:color-mix(in srgb, var(--att-p2) 18%, var(--bg));color:var(--att-p2-fg)}
     </style>
 </head>
 <body>
@@ -1374,9 +1390,29 @@
       // counts for filter chips
       const unmarkedCount = students.filter(function(s){ return !att[date + '|' + s.id]; }).length;
       const streakCount   = students.filter(function(s){ return isStreakAbsent(s.id); }).length;
+      const statusCounts = {};
+      students.forEach(function(s){
+        const st = att[date + '|' + s.id];
+        if (st) statusCounts[st] = (statusCounts[st] || 0) + 1;
+      });
 
       return (
         <>
+          <div className="summary-bar" role="button" tabIndex={0}
+            title="탭하면 미체크 학생만 보기/해제"
+            onClick={() => setFilterBy(filterBy === 'unmarked' ? 'all' : 'unmarked')}>
+            {STATUS_OPTIONS.map((opt) => statusCounts[opt.code] ? (
+              <span key={opt.code} className={'sum-item ' + opt.code}>
+                {opt.label} <b>{statusCounts[opt.code]}</b>
+              </span>
+            ) : null)}
+            <span className={'sum-item unmarked' + (unmarkedCount === 0 ? ' done' : '')}>
+              미체크 <b>{unmarkedCount}</b>
+            </span>
+          </div>
+          {unmarkedCount === 0 && students.length > 0 && (
+            <div className="done-banner">출석 체크 완료! 🎉</div>
+          )}
           <div className="bulk-bar">
             <span className="bulk-label">일괄 표시{filterBy !== 'all' ? ' (표시된 학생만)' : ''}</span>
             {STATUS_OPTIONS.map((opt) => (
