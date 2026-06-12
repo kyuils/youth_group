@@ -1956,6 +1956,23 @@
         return () => { aborted = true; };
       }, [idToken, studentId, toast.show]);
 
+      const [extra, setExtra] = useState(null);
+      useEffect(() => {
+        let aborted = false;
+        Promise.all([
+          callApi('getAttendance', { idToken, year: new Date().getFullYear() }),
+          callApi('getPrayers', { idToken })
+        ]).then(([a, p]) => {
+          if (aborted) return;
+          setExtra({
+            att: a.ok ? a.rows.filter((r) => String(r.studentId) === String(studentId))
+                              .sort((x, y) => (x.date < y.date ? 1 : -1)).slice(0, 12) : [],
+            prayers: p.ok ? (p.prayers || []).filter((x) => String(x.studentId) === String(studentId)) : []
+          });
+        }).catch(() => { if (!aborted) setExtra({ att: [], prayers: [] }); });
+        return () => { aborted = true; };
+      }, [idToken, studentId]);
+
       useEffect(() => {
         const onKey = (e) => { if (e.key === 'Escape') onClose(); };
         window.addEventListener('keydown', onKey);
@@ -2013,6 +2030,31 @@
                         </div>
                       );
                     })}
+                  {extra && extra.prayers.length > 0 && (
+                    <div style={{marginTop:14}}>
+                      <div style={{fontSize:13,fontWeight:700,color:'var(--label-alt)',marginBottom:6}}>🙏 기도제목</div>
+                      {extra.prayers.map((p) => (
+                        <div key={p.id} style={{fontSize:14,lineHeight:1.5,padding:'6px 0',whiteSpace:'pre-wrap',
+                          borderBottom:'1px solid var(--fill-normal)'}}>{p.text}</div>
+                      ))}
+                    </div>
+                  )}
+                  {extra && extra.att.length > 0 && (
+                    <div style={{marginTop:14}}>
+                      <div style={{fontSize:13,fontWeight:700,color:'var(--label-alt)',marginBottom:6}}>📅 올해 출석 (최근 12회)</div>
+                      <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                        {extra.att.map((r) => {
+                          const o = STATUS_OPTIONS.find((x) => x.code === r.status);
+                          return (
+                            <span key={r.date} className={'sum-item ' + r.status}
+                              title={r.etcText || ''}>
+                              {r.date.slice(5).replace('-', '/')} {o ? o.label : r.status}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="sheet-footer">
                   <button className="btn ghost" style={{width:'100%'}} onClick={onClose}>닫기</button>
