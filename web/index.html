@@ -1967,7 +1967,7 @@
           setExtra({
             att: a.ok ? a.rows.filter((r) => String(r.studentId) === String(studentId))
                               .sort((x, y) => (x.date < y.date ? 1 : -1)).slice(0, 12) : [],
-            prayers: p.ok ? (p.prayers || []).filter((x) => String(x.studentId) === String(studentId)) : []
+            prayers: p.ok ? (p.prayers || []).filter((x) => String(x.studentId) === String(studentId) && String(x.text || '').trim()) : []
           });
         }).catch(() => { if (!aborted) setExtra({ att: [], prayers: [] }); });
         return () => { aborted = true; };
@@ -2045,10 +2045,12 @@
                       <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
                         {extra.att.map((r) => {
                           const o = STATUS_OPTIONS.find((x) => x.code === r.status);
+                          const [, mm, dd] = r.date.split('-');
+                          const md = Number(mm) + '/' + Number(dd);
                           return (
                             <span key={r.date} className={'sum-item ' + r.status}
                               title={r.etcText || ''}>
-                              {r.date.slice(5).replace('-', '/')} {o ? o.label : r.status}
+                              {md} {o ? o.label : r.status}{r.etcText ? ' · ' + r.etcText : ''}
                             </span>
                           );
                         })}
