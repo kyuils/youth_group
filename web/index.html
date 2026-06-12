@@ -624,6 +624,20 @@
     .bulk-menu button{border:none;background:transparent;padding:12px 18px;font-size:15px;
       text-align:left;border-radius:10px;cursor:pointer;color:var(--label-normal)}
     .bulk-menu button:hover{background:var(--fill-normal)}
+
+    /* ── v1.2 weekly view ── */
+    .seg-bar{display:flex;gap:6px;padding:10px 16px}
+    .seg-bar button{flex:1;min-height:42px;border:1px solid var(--line-solid);background:var(--bg);
+      border-radius:9999px;font-size:15px;font-weight:600;color:var(--label-alt);cursor:pointer}
+    .seg-bar button.active{background:var(--semantic-primary-normal,#FF6B4A);
+      border-color:transparent;color:#fff}
+    .weekly-body{padding:0 16px 140px}
+    .weekly-group{margin-bottom:18px}
+    .weekly-head{font-size:16px;font-weight:800;margin:10px 0 6px;color:var(--label-normal)}
+    .weekly-line{display:flex;align-items:center;gap:8px;padding:7px 0;
+      border-bottom:1px solid var(--fill-normal);font-size:15px;line-height:1.5}
+    .weekly-names{color:var(--label-normal);word-break:keep-all}
+    .weekly-empty{color:var(--label-alt);font-size:14px;padding:8px 0}
     </style>
 </head>
 <body>
@@ -1103,7 +1117,7 @@
 
           {validTab === 'roster'    && <RosterView    idToken={idToken} me={me} date={date} toast={toast} onOpenDetail={setDetailId} />}
           {validTab === 'prayer'    && <PrayerView    idToken={idToken} toast={toast} />}
-          {validTab === 'records'   && <RecordsView   idToken={idToken} toast={toast} me={me} />}
+          {validTab === 'records'   && <WeeklyView    idToken={idToken} toast={toast} me={me} date={date} />}
           {validTab === 'stats'     && <StatsView     idToken={idToken} toast={toast} />}
           {validTab === 'newcomers' && <NewcomersView idToken={idToken} toast={toast} />}
           {validTab === 'admin'     && <AdminView     idToken={idToken} toast={toast} me={me} />}
@@ -1664,8 +1678,9 @@
       );
     }
 
-    // ──────────────── RecordsView ────────────────
-    function RecordsView({ idToken, toast, me }) {
+    // ──────────────── WeeklyView (현황: 주별 명단 + 통계) ────────────────
+    function WeeklyView({ idToken, toast, me, date }) {
+      const [seg, setSeg] = useState('week'); // 'week' | 'stats'
       const [data, setData] = useState(null);
       useEffect(() => {
         Promise.all([callApi('getRoster',{idToken}), callApi('getAttendance',{idToken, year: new Date().getFullYear()})])
@@ -1676,23 +1691,94 @@
           .catch(() => toast.show('네트워크 오류'));
       }, [idToken, toast.show]);
       if (!data) return <div className="loading">불러오는 중…</div>;
-      const byDate = {};
-      data.rows.forEach((r) => { (byDate[r.date] = byDate[r.date] || []).push(r); });
-      const dates = Object.keys(byDate).sort().reverse();
+
+      const labelOf = function(code){
+        const o = STATUS_OPTIONS.find(function(x){ return x.code === code; });
+        return o ? o.label : code;
+      };
+
+      // 선택한 주일의 기록을 학생 기준으로 매핑
+      const byId = {};
+      data.rows.forEach(function(r){ if (r.date === date) byId[r.studentId] = r; });
+      const groupOf = function(code){
+        return data.students.filter(function(s){ return byId[s.id] && byId[s.id].status === code; });
+      };
+      const presentGroups = PRESENT_CODES
+        .map(function(code){ return { code: code, students: groupOf(code) }; })
+        .filter(function(g){ return g.students.length > 0; });
+      const etcStudents = groupOf('ETC');
+      const absentStudents = groupOf('ABSENT');
+      const unmarked = data.students.filter(function(s){ return !byId[s.id]; });
+      const presentTotal = presentGroups.reduce(function(a,g){ return a + g.students.length; }, 0) + etcStudents.length;
+
+      const contactChips = function(s){
+        const phone = String(s['연락처'] || '').replace(/[^0-9+]/g, '');
+        if (!phone) return null;
+        return (
+          <span style={{display:'inline-flex',gap:6,marginLeft:8}}>
+            <a href={'tel:' + phone} className="link-chip" aria-label="전화 걸기">📞</a>
+            <a href={'sms:' + phone} className="link-chip" aria-label="문자 보내기">💬</a>
+          </span>
+        );
+      };
+
       return (
         <>
-          {dates.map((d) => (
-            <div key={d} style={{padding:'12px 16px',borderBottom:'1px solid var(--line-solid)'}}>
-              <div style={{fontWeight:600}}>{d}</div>
-              <div style={{fontSize:13,color:'var(--label-alt)',marginTop:4}}>
-                {STATUS_OPTIONS.map((opt) => {
-                  const n = byDate[d].filter((r) => r.status === opt.code).length;
-                  return n > 0 ? <span key={opt.code} style={{marginRight:12}}>{opt.label} {n}</span> : null;
+          <div className="seg-bar">
+            <button className={seg === 'week' ? 'active' : ''} onClick={() => setSeg('week')}>주별 명단</button>
+            <button className={seg === 'stats' ? 'active' : ''} onClick={() => setSeg('stats')}>통계</button>
+          </div>
+
+          {seg === 'stats' && <StatsView idToken={idToken} toast={toast} />}
+
+          {seg === 'week' && (
+            <div className="weekly-body">
+              <div className="weekly-group">
+                <div className="weekly-head">✅ 출석 {presentTotal}</div>
+                {presentGroups.map(function(g){
+                  return (
+                    <div key={g.code} className="weekly-line">
+                      <span className={'sum-item ' + g.code}>{labelOf(g.code)}</span>
+                      <span className="weekly-names">{g.students.map(function(s){ return s['이름']; }).join(', ')}</span>
+                    </div>
+                  );
                 })}
+                {etcStudents.map(function(s){
+                  return (
+                    <div key={s.id} className="weekly-line">
+                      <span className="sum-item ETC">기타</span>
+                      <span className="weekly-names">{s['이름']}{byId[s.id].etcText ? ' (' + byId[s.id].etcText + ')' : ''}</span>
+                    </div>
+                  );
+                })}
+                {presentTotal === 0 && <div className="weekly-empty">이 주일의 출석 기록이 없습니다</div>}
+              </div>
+
+              <div className="weekly-group">
+                <div className="weekly-head">❌ 결석 {absentStudents.length}</div>
+                {absentStudents.map(function(s){
+                  return (
+                    <div key={s.id} className="weekly-line">
+                      <span className="weekly-names">
+                        {s['이름']}{byId[s.id].etcText ? ' (' + byId[s.id].etcText + ')' : ''}
+                      </span>
+                      {contactChips(s)}
+                    </div>
+                  );
+                })}
+                {absentStudents.length === 0 && <div className="weekly-empty">결석한 학생이 없습니다 🎉</div>}
+              </div>
+
+              <div className="weekly-group">
+                <div className="weekly-head">⬜ 미체크 {unmarked.length}</div>
+                {unmarked.length > 0 && (
+                  <div className="weekly-line">
+                    <span className="weekly-names">{unmarked.map(function(s){ return s['이름']; }).join(', ')}</span>
+                  </div>
+                )}
               </div>
             </div>
-          ))}
-          {dates.length === 0 && <div className="loading">기록이 없습니다.</div>}
+          )}
         </>
       );
     }
