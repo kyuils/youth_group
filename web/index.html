@@ -588,6 +588,18 @@
       transition:background 150ms ease, color 150ms ease;
     }
     .icon-btn:hover{background:var(--semantic-fill-normal);color:var(--semantic-label-normal)}
+
+    /* ── v1.2 week stepper ── */
+    .week-stepper{display:flex;align-items:center;gap:4px;padding:6px 8px;
+      border-bottom:1px solid var(--line-solid);background:var(--bg)}
+    .week-stepper.off-week{background:#FFF3C9}
+    .week-arrow{width:44px;height:44px;border:none;background:transparent;font-size:15px;
+      color:var(--label-normal);border-radius:12px;cursor:pointer}
+    .week-arrow:disabled{opacity:.25}
+    .week-label{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;min-width:0}
+    .week-main{font-weight:700;font-size:16px;color:var(--label-normal)}
+    .week-today{border:1px solid var(--line-solid);background:var(--bg);border-radius:9999px;
+      padding:5px 12px;font-size:13px;font-weight:600;cursor:pointer;color:var(--label-normal)}
     </style>
 </head>
 <body>
@@ -756,6 +768,22 @@
       return y + '-' + m + '-' + dd;
     }
 
+    // 가장 최근 주일(일요일). 오늘이 주일이면 오늘. KST 기준(todayISO).
+    function recentSunday() {
+      const iso = todayISO();
+      const d = new Date(iso + 'T00:00:00');
+      return shiftDays(iso, -d.getDay());
+    }
+
+    // 'YYYY-MM-DD' → '6월 2주 · 6/14 주일' (그 달의 N번째 주일).
+    function weekLabel(iso) {
+      const d = new Date(iso + 'T00:00:00');
+      if (isNaN(d.getTime())) return iso;
+      const month = d.getMonth() + 1;
+      const nth = Math.floor((d.getDate() - 1) / 7) + 1;
+      return month + '월 ' + nth + '주 · ' + month + '/' + d.getDate() + ' 주일';
+    }
+
     // Relative time for prayer createdAt etc. Accepts 'YYYY-MM-DD' or
     // ISO timestamp; returns "오늘", "어제", "N일 전", "N주 전", or absolute date.
     function relativeDate(iso) {
@@ -798,6 +826,25 @@
         : '교사';
       const titleName = TITLE_LABELS[me.title] || '';
       return titleName ? `${roleName} · ${titleName}` : roleName;
+    }
+
+    // 전역 주일 스테퍼. 다음 주(미래)는 이동 불가, 이번 주가 아니면 경고색 + [이번 주로].
+    function WeekStepper({ sunday, onChange }) {
+      const current = recentSunday();
+      const isCurrent = sunday === current;
+      return (
+        <div className={'week-stepper' + (isCurrent ? '' : ' off-week')}>
+          <button className="week-arrow" onClick={() => onChange(shiftDays(sunday, -7))} aria-label="지난 주일">◀</button>
+          <div className="week-label">
+            <span className="week-main">{weekLabel(sunday)}</span>
+            {!isCurrent && (
+              <button className="week-today" onClick={() => onChange(current)}>이번 주로</button>
+            )}
+          </div>
+          <button className="week-arrow" onClick={() => onChange(shiftDays(sunday, 7))} aria-label="다음 주일"
+            disabled={sunday >= current}>▶</button>
+        </div>
+      );
     }
 
     // ──────────────── Toast ────────────────
@@ -975,7 +1022,7 @@
       const [tab, setTab] = useState(() =>
         (!me.teacher && me.permissions.includes('read_all')) ? 'admin' : 'roster'
       );
-      const [date, setDate] = useState(todayISO());
+      const [date, setDate] = useState(recentSunday());
       const [detailId, setDetailId] = useState(null);
       const toast = useToast();
       const [theme, setTheme] = useState(() => {
@@ -1025,6 +1072,10 @@
               <button className="btn ghost" onClick={onSignOut} style={{height:36,fontSize:13}}>로그아웃</button>
             </div>
           </div>
+
+          {(validTab === 'roster' || validTab === 'weekly') && (
+            <WeekStepper sunday={date} onChange={setDate} />
+          )}
 
           {validTab === 'roster'    && <RosterView    idToken={idToken} me={me} date={date} onChangeDate={setDate} toast={toast} onOpenDetail={setDetailId} />}
           {validTab === 'prayer'    && <PrayerView    idToken={idToken} toast={toast} />}
@@ -1329,16 +1380,6 @@
 
       return (
         <>
-          <div style={{padding:'12px 16px 0'}}>
-            <label style={{fontSize:13,color:'var(--label-alt)'}}>예배 날짜</label>
-            <div className="date-row">
-              <input type="date" value={date} onChange={(e) => onChangeDate(e.target.value)}
-                style={{flex:1,padding:'8px 12px',border:'1px solid var(--line-solid)',borderRadius:8,font:'inherit',minWidth:0,background:'var(--bg)',color:'var(--label-normal)'}} />
-              <button className="btn ghost sm" onClick={() => onChangeDate(shiftDays(date, -7))} aria-label="지난주" title="지난주">◀</button>
-              <button className="btn ghost sm" onClick={() => onChangeDate(todayISO())}>오늘</button>
-              <button className="btn ghost sm" onClick={() => onChangeDate(shiftDays(date, 7))} aria-label="다음주" title="다음주">▶</button>
-            </div>
-          </div>
           <div className="bulk-bar">
             <span className="bulk-label">일괄 표시{filterBy !== 'all' ? ' (표시된 학생만)' : ''}</span>
             {STATUS_OPTIONS.map((opt) => (
