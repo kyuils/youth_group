@@ -669,6 +669,8 @@
     .student-card{min-height:56px}
     .pill{min-height:40px;min-width:44px}
     .pill.compact{min-width:40px;min-height:40px} /* 360px 폰에서 5필 한 줄 유지, 터치 높이 40px (v1.2) */
+    /* 저장 실패 재시도 칩 (v1.2) — 기존 상태 필 패턴(--att-* 변수 + color-mix)을 따라 다크 모드 호환 */
+    .pill.retry{background:color-mix(in srgb, var(--att-absent) 12%, transparent);border-color:var(--att-absent);color:var(--att-absent-fg);font-weight:800}
     @keyframes chip-pop{0%{transform:scale(1)}40%{transform:scale(1.18)}100%{transform:scale(1)}}
     .pill.active{animation:chip-pop .25s ease}
     @media (prefers-reduced-motion: reduce){.pill.active{animation:none}}
@@ -1176,6 +1178,7 @@
       const [pendingEtc, setPendingEtc] = useState(null); // { studentId?, status, bulk?, count? }
       const [bulkBusy, setBulkBusy] = useState(false);
       const [lastBulk, setLastBulk] = useState(null); // { label, snapshot:[{studentId, prevStatus}] } — 실행취소용
+      const [attErr, setAttErr] = useState({}); // 'date|studentId' -> {status, etcText} — 개별 저장 실패 재시도용
       const [sortBy, setSortBy] = useState('name');    // 'name' | 'grade' | 'lastAtt'
       const [filterBy, setFilterBy] = useState('all'); // 'all' | 'unmarked' | 'streak'
       const [bulkOpen, setBulkOpen] = useState(false);
@@ -1212,31 +1215,30 @@
       }, [idToken, toast.show]);
 
       // Common attendance write with optimistic update + rollback.
+      // 실패 시 attErr에 기록해 재시도 칩(⟳)을 띄우고, 성공 시 해당 키의 오류를 지운다.
       const saveAttendance = (studentId, status, etcText) => {
         const key = date + '|' + studentId;
         let prev;
         setAtt((m) => { prev = m[key]; return { ...m, [key]: status }; });
+        const rollback = () => {
+          setAtt((m) => {
+            if (m[key] !== status) return m;
+            const next = { ...m };
+            if (prev !== undefined) next[key] = prev; else delete next[key];
+            return next;
+          });
+          setAttErr((e) => ({ ...e, [key]: { status, etcText } }));
+        };
+        const clearErr = () => setAttErr((e) => {
+          if (!e[key]) return e;
+          const next = { ...e }; delete next[key]; return next;
+        });
         callApi('setAttendance', { idToken, date, studentId, status, etcText })
           .then((r) => {
-            if (!r.ok) {
-              setAtt((m) => {
-                if (m[key] !== status) return m;
-                const next = { ...m };
-                if (prev !== undefined) next[key] = prev; else delete next[key];
-                return next;
-              });
-              toast.show('저장 실패: ' + (r.code || ''));
-            }
+            if (r.ok) { clearErr(); }
+            else { rollback(); toast.show('저장 실패: ' + (r.code || '')); }
           })
-          .catch(() => {
-            setAtt((m) => {
-              if (m[key] !== status) return m;
-              const next = { ...m };
-              if (prev !== undefined) next[key] = prev; else delete next[key];
-              return next;
-            });
-            toast.show('네트워크 오류');
-          });
+          .catch(() => { rollback(); toast.show('네트워크 오류 — ⟳로 재시도하세요'); });
       };
 
       const setStatus = (studentId, status) => {
@@ -1290,6 +1292,16 @@
             if (r.ok) {
               toast.show((r.written || items.length) + '명 ' + labelText + ' 처리됨');
               setLastBulk({ label: labelText, snapshot: snapshot });
+              // 일괄 저장이 성공한 학생의 묵은 개별 실패 칩(⟳)은 해소된 것이므로 지운다
+              setAttErr(function(e){
+                const next = { ...e };
+                let changed = false;
+                targets.forEach(function(s){
+                  const k = date + '|' + s.id;
+                  if (next[k]) { delete next[k]; changed = true; }
+                });
+                return changed ? next : e;
+              });
             } else {
               rollback();
               toast.show('일괄 저장 실패: ' + (r.code || ''));
@@ -1534,6 +1546,15 @@
                   </div>
                 </div>
                 <div className="student-actions">
+                  {attErr[date + '|' + s.id] && (
+                    <button className="pill compact retry"
+                      title="저장에 실패했습니다. 탭해서 재시도"
+                      disabled={bulkBusy}
+                      onClick={() => {
+                        const e = attErr[date + '|' + s.id];
+                        saveAttendance(s.id, e.status, e.etcText || '');
+                      }}>⟳</button>
+                  )}
                   {STATUS_OPTIONS.map((opt) => (
                     <button key={opt.code}
                       className={'pill compact ' + (cur === opt.code ? 'active ' + opt.code : '')}
