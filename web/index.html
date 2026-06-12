@@ -327,14 +327,8 @@
     .pill.active.ETC   {background:color-mix(in srgb, var(--att-etc) 12%, transparent);   border-color:var(--att-etc);   color:var(--att-etc-fg);   box-shadow:0 0 0 1px color-mix(in srgb, var(--att-etc) 18%, transparent)}
     .pill.active.ABSENT{background:color-mix(in srgb, var(--att-absent) 12%, transparent);border-color:var(--att-absent);color:var(--att-absent-fg);box-shadow:0 0 0 1px color-mix(in srgb, var(--att-absent) 15%, transparent)}
 
-    /* ====== BULK BAR ====== */
-    .bulk-bar{
-      padding:var(--space-8) var(--space-16) var(--space-4);
-      display:flex;gap:var(--space-6);flex-wrap:wrap;align-items:center;
-      border-bottom:1px solid var(--semantic-line-solid-normal);margin-bottom:var(--space-4);
-    }
+    /* ====== BULK LABEL (used by StatsView sort bar) ====== */
     .bulk-label{font-size:var(--type-caption2-size);color:var(--semantic-label-alternative);font-weight:var(--weight-bold-text);margin-right:2px}
-    .bulk-bar .pill[disabled]{opacity:.5;cursor:wait}
 
     /* ====== LINK CHIP (전화/문자/지도) ====== */
     .link-chip{
@@ -1385,8 +1379,7 @@
         return map[g] || 99;
       }
 
-      // ── M2 정렬·필터 — 일괄 적용(applyBulk)도 이 결과를 쓰므로
-      //    function 선언으로 두어 핸들러에서 호이스팅으로 접근 (H1)
+      // 명단 렌더용 필터/정렬 결과. function 선언이라 위 핸들러들보다 뒤에 있어도 안전.
       function getVisibleStudents() {
         let v = (students || []).slice();
         if (filterBy === 'unmarked') {
@@ -1497,13 +1490,14 @@
                   {STATUS_OPTIONS.map((opt) => (
                     <button key={opt.code}
                       className={'pill compact ' + (cur === opt.code ? 'active ' + opt.code : '')}
+                      disabled={bulkBusy}
                       onClick={() => setStatus(s.id, opt.code)}>{opt.label}</button>
                   ))}
                 </div>
               </div>
             );
           })}
-          <div style={{height:140}} />
+          {unmarkedCount > 0 && <div style={{height:140}} />}
           {unmarkedCount > 0 && (
             <div className="bulk-fab">
               {bulkOpen && (
@@ -1517,7 +1511,7 @@
                 </div>
               )}
               <button className="bulk-main" disabled={bulkBusy}
-                onClick={() => bulkSetUnmarked(defaultService)}>
+                onClick={() => { setBulkOpen(false); bulkSetUnmarked(defaultService); }}>
                 미체크 {unmarkedCount}명 → {labelOf(defaultService)} 출석
               </button>
               <button className="bulk-more" disabled={bulkBusy} aria-label="다른 상태로 일괄 적용"
