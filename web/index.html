@@ -1075,7 +1075,7 @@
       };
 
       const TABS = useMemo(() => {
-        const base = [['roster','출석'],['prayer','기도제목'],['records','기록'],['stats','통계']];
+        const base = [['roster','출석'],['weekly','현황'],['prayer','기도제목']];
         const extra = [];
         if (me.permissions.includes('write_newcomer')) extra.push(['newcomers','새가족부']);
         if (me.permissions.includes('read_all')) extra.push(['admin','관리자']);
@@ -1116,9 +1116,8 @@
           )}
 
           {validTab === 'roster'    && <RosterView    idToken={idToken} me={me} date={date} toast={toast} onOpenDetail={setDetailId} />}
+          {validTab === 'weekly'    && <WeeklyView    idToken={idToken} toast={toast} me={me} date={date} />}
           {validTab === 'prayer'    && <PrayerView    idToken={idToken} toast={toast} />}
-          {validTab === 'records'   && <WeeklyView    idToken={idToken} toast={toast} me={me} date={date} />}
-          {validTab === 'stats'     && <StatsView     idToken={idToken} toast={toast} />}
           {validTab === 'newcomers' && <NewcomersView idToken={idToken} toast={toast} />}
           {validTab === 'admin'     && <AdminView     idToken={idToken} toast={toast} me={me} />}
 
