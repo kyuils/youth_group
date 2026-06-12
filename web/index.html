@@ -613,6 +613,23 @@
     .sum-item.unmarked.done{background:color-mix(in srgb, var(--att-p2) 18%, var(--bg));color:var(--att-p2-fg)}
     .done-banner{margin:10px 16px;padding:12px 16px;border-radius:14px;text-align:center;
       font-weight:700;background:color-mix(in srgb, var(--att-p2) 18%, var(--bg));color:var(--att-p2-fg)}
+
+    /* ── v1.2 bottom bulk button ── */
+    .bulk-fab{position:fixed;left:12px;right:12px;bottom:calc(64px + env(safe-area-inset-bottom, 0px));
+      display:flex;gap:8px;z-index:25}
+    .bulk-main{flex:1;min-height:52px;border:none;border-radius:16px;font-size:16px;font-weight:700;
+      background:var(--semantic-primary-normal,#FF6B4A);color:#fff;cursor:pointer;
+      box-shadow:0 6px 18px rgba(0,0,0,.18)}
+    .bulk-main:disabled{opacity:.5}
+    .bulk-more{width:52px;min-height:52px;border-radius:16px;font-size:18px;
+      background:var(--bg);color:var(--label-normal);border:1px solid var(--line-solid);cursor:pointer;
+      box-shadow:0 6px 18px rgba(0,0,0,.12)}
+    .bulk-menu{position:absolute;bottom:60px;right:0;display:flex;flex-direction:column;gap:2px;
+      background:var(--bg);border:1px solid var(--line-solid);border-radius:14px;padding:6px;
+      box-shadow:0 10px 30px rgba(0,0,0,.2)}
+    .bulk-menu button{border:none;background:transparent;padding:12px 18px;font-size:15px;
+      text-align:left;border-radius:10px;cursor:pointer;color:var(--label-normal)}
+    .bulk-menu button:hover{background:var(--fill-normal)}
     </style>
 </head>
 <body>
@@ -1120,6 +1137,7 @@
       const [lastBulk, setLastBulk] = useState(null); // { label, snapshot:[{studentId, prevStatus}] } — 실행취소용
       const [sortBy, setSortBy] = useState('name');    // 'name' | 'grade' | 'lastAtt'
       const [filterBy, setFilterBy] = useState('all'); // 'all' | 'unmarked' | 'streak'
+      const [bulkOpen, setBulkOpen] = useState(false);
 
       // 실행취소 바는 20초 후 자동 닫힘
       useEffect(() => {
@@ -1192,16 +1210,14 @@
 
       const handleEtcSave = (text) => {
         if (!pendingEtc) return;
-        if (pendingEtc.bulk) applyBulk(pendingEtc.status, text || '');
+        if (pendingEtc.bulk) applyBulk(pendingEtc.status, text || '', pendingEtc.targets || []);
         else saveAttendance(pendingEtc.studentId, pendingEtc.status, text || '');
         setPendingEtc(null);
       };
       const handleEtcCancel = () => setPendingEtc(null);
 
-      // 일괄 출석: 현재 화면에 보이는(필터된) 학생에게만 적용 (H1).
-      // getVisibleStudents는 아래에서 function 선언으로 호이스팅됨.
-      const applyBulk = (status, etcText) => {
-        const targets = getVisibleStudents();
+      // 일괄 출석: 전달받은 targets 배열에 적용.
+      const applyBulk = (status, etcText, targets) => {
         if (targets.length === 0) return;
         const label = STATUS_OPTIONS.find(function(o){ return o.code === status; });
         const labelText = label ? label.label : status;
@@ -1241,18 +1257,28 @@
           .catch(function(){ setBulkBusy(false); rollback(); toast.show('네트워크 오류'); });
       };
 
-      const bulkSet = (status) => {
-        const targets = getVisibleStudents();
-        if (targets.length === 0) { toast.show('적용할 학생이 없습니다'); return; }
-        // 기타/결석은 사유를 한 번 입력받아 전원에게 적용 (M5) — 입력 시트가 확인 역할
+      // 반의 최빈 예배부 (올해 기록 기준, 없으면 3부)
+      const serviceFreq = {};
+      attRows.forEach(function(r){
+        if (PRESENT_CODES.indexOf(r.status) >= 0) serviceFreq[r.status] = (serviceFreq[r.status] || 0) + 1;
+      });
+      const defaultService = ['P3','P2','P4'].sort(function(a,b){
+        return (serviceFreq[b]||0) - (serviceFreq[a]||0);
+      })[0];
+      const labelOf = function(code){
+        const o = STATUS_OPTIONS.find(function(x){ return x.code === code; });
+        return o ? o.label : code;
+      };
+
+      // 미체크 학생 전원에게 일괄 적용. 기타/결석은 사유 시트를 거친다.
+      const bulkSetUnmarked = (status) => {
+        const targets = (students || []).filter(function(s){ return !att[date + '|' + s.id]; });
+        if (targets.length === 0) { toast.show('미체크 학생이 없습니다'); return; }
         if (status === 'ETC' || status === 'ABSENT') {
-          setPendingEtc({ bulk: true, status: status, count: targets.length });
+          setPendingEtc({ bulk: true, status: status, count: targets.length, targets: targets });
           return;
         }
-        const label = STATUS_OPTIONS.find(function(o){ return o.code === status; });
-        const scope = filterBy === 'all' ? '반 전체' : '표시된';
-        if (!window.confirm(scope + ' ' + targets.length + '명을 \'' + (label ? label.label : status) + '\'로 일괄 표시할까요?')) return;
-        applyBulk(status, '');
+        applyBulk(status, '', targets);
       };
 
       // 일괄 실행취소 — 이전 상태 복원. 기록이 없던 학생은 'NONE'으로 지움
@@ -1415,14 +1441,6 @@
           {unmarkedCount === 0 && students.length > 0 && (
             <div className="done-banner" aria-live="polite">출석 체크 완료! 🎉</div>
           )}
-          <div className="bulk-bar">
-            <span className="bulk-label">일괄 표시{filterBy !== 'all' ? ' (표시된 학생만)' : ''}</span>
-            {STATUS_OPTIONS.map((opt) => (
-              <button key={opt.code} className="pill compact"
-                disabled={bulkBusy}
-                onClick={() => bulkSet(opt.code)}>{opt.label}</button>
-            ))}
-          </div>
           {lastBulk && (
             <div className="undo-bar">
               <span>'{lastBulk.label}' 일괄 적용됨 ({lastBulk.snapshot.length}명)</span>
@@ -1485,9 +1503,31 @@
               </div>
             );
           })}
+          <div style={{height:140}} />
+          {unmarkedCount > 0 && (
+            <div className="bulk-fab">
+              {bulkOpen && (
+                <div className="bulk-menu">
+                  {STATUS_OPTIONS.map((opt) => (
+                    <button key={opt.code} disabled={bulkBusy}
+                      onClick={() => { setBulkOpen(false); bulkSetUnmarked(opt.code); }}>
+                      미체크 전원 {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <button className="bulk-main" disabled={bulkBusy}
+                onClick={() => bulkSetUnmarked(defaultService)}>
+                미체크 {unmarkedCount}명 → {labelOf(defaultService)} 출석
+              </button>
+              <button className="bulk-more" disabled={bulkBusy} aria-label="다른 상태로 일괄 적용"
+                aria-expanded={bulkOpen}
+                onClick={() => setBulkOpen(!bulkOpen)}>▾</button>
+            </div>
+          )}
           {pendingEtc && (
             <EtcInputSheet status={pendingEtc.status}
-              subtitle={pendingEtc.bulk ? (filterBy === 'all' ? '반 전체' : '표시된') + ' ' + pendingEtc.count + '명에게 일괄 적용됩니다' : null}
+              subtitle={pendingEtc.bulk ? '미체크 ' + pendingEtc.count + '명에게 일괄 적용됩니다' : null}
               onSave={handleEtcSave} onCancel={handleEtcCancel} />
           )}
         </>
