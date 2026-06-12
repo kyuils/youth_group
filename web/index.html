@@ -665,7 +665,7 @@
     .student-card.compact .student-name{font-size:15px}
     .student-card{min-height:56px}
     .pill{min-height:40px;min-width:44px}
-    .pill.compact{min-width:40px} /* 360px 폰에서 5필 한 줄 유지 */
+    .pill.compact{min-width:40px;min-height:40px} /* 360px 폰에서 5필 한 줄 유지, 터치 높이 40px (v1.2) */
     @keyframes chip-pop{0%{transform:scale(1)}40%{transform:scale(1.18)}100%{transform:scale(1)}}
     .pill.active{animation:chip-pop .25s ease}
     @media (prefers-reduced-motion: reduce){.pill.active{animation:none}}
