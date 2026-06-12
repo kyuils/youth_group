@@ -1220,23 +1220,28 @@
         const key = date + '|' + studentId;
         let prev;
         setAtt((m) => { prev = m[key]; return { ...m, [key]: status }; });
-        const rollback = () => {
-          setAtt((m) => {
-            if (m[key] !== status) return m;
-            const next = { ...m };
-            if (prev !== undefined) next[key] = prev; else delete next[key];
-            return next;
-          });
-          setAttErr((e) => ({ ...e, [key]: { status, etcText } }));
-        };
+        // 재시도/새 탭이 시작되면 기존 오류 칩을 즉시 지운다
+        // (재시도 중 표시 + 이중 탭 방지). 실패하면 rollback이 다시 기록한다.
         const clearErr = () => setAttErr((e) => {
           if (!e[key]) return e;
           const next = { ...e }; delete next[key]; return next;
         });
+        clearErr();
+        const rollback = () => {
+          let superseded = false;
+          setAtt((m) => {
+            if (m[key] !== status) { superseded = true; return m; }
+            const next = { ...m };
+            if (prev !== undefined) next[key] = prev; else delete next[key];
+            return next;
+          });
+          // 이미 다른 저장이 덮어썼다면(stale 실패) 오류 칩을 띄우지 않는다.
+          if (!superseded) setAttErr((e) => ({ ...e, [key]: { status, etcText } }));
+        };
         callApi('setAttendance', { idToken, date, studentId, status, etcText })
           .then((r) => {
             if (r.ok) { clearErr(); }
-            else { rollback(); toast.show('저장 실패: ' + (r.code || '')); }
+            else { rollback(); toast.show('저장 실패: ' + (r.code || '') + ' — ⟳로 재시도하세요'); }
           })
           .catch(() => { rollback(); toast.show('네트워크 오류 — ⟳로 재시도하세요'); });
       };
@@ -1549,6 +1554,7 @@
                   {attErr[date + '|' + s.id] && (
                     <button className="pill compact retry"
                       title="저장에 실패했습니다. 탭해서 재시도"
+                      aria-label="저장 실패 — 재시도"
                       disabled={bulkBusy}
                       onClick={() => {
                         const e = attErr[date + '|' + s.id];
