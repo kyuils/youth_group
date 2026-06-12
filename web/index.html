@@ -1398,7 +1398,8 @@
 
       return (
         <>
-          <div className="summary-bar" role="button" tabIndex={0}
+          {/* 탭하면 미체크 필터 토글 — streak 필터 중에도 미체크로 전환됨(의도) */}
+          <div className="summary-bar"
             title="탭하면 미체크 학생만 보기/해제"
             onClick={() => setFilterBy(filterBy === 'unmarked' ? 'all' : 'unmarked')}>
             {STATUS_OPTIONS.map((opt) => statusCounts[opt.code] ? (
@@ -1410,8 +1411,9 @@
               미체크 <b>{unmarkedCount}</b>
             </span>
           </div>
+          {/* length 가드는 빈 명단 방어용 */}
           {unmarkedCount === 0 && students.length > 0 && (
-            <div className="done-banner">출석 체크 완료! 🎉</div>
+            <div className="done-banner" aria-live="polite">출석 체크 완료! 🎉</div>
           )}
           <div className="bulk-bar">
             <span className="bulk-label">일괄 표시{filterBy !== 'all' ? ' (표시된 학생만)' : ''}</span>
