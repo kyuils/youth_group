@@ -576,10 +576,6 @@
       font-size:var(--type-label2-size);font-weight:var(--weight-bold-text);
     }
 
-    /* 예배 날짜 + 주 단위 점프 (M3) */
-    .date-row{display:flex;gap:var(--space-6);align-items:stretch;margin-top:var(--space-4)}
-    .date-row .btn.sm{flex-shrink:0;height:auto;min-height:38px}
-
     /* 앱바 아이콘 버튼 (다크모드 토글) */
     .icon-btn{
       width:36px;height:36px;border-radius:var(--radius-md);
@@ -592,7 +588,8 @@
     /* ── v1.2 week stepper ── */
     .week-stepper{display:flex;align-items:center;gap:4px;padding:6px 8px;
       border-bottom:1px solid var(--line-solid);background:var(--bg)}
-    .week-stepper.off-week{background:#FFF3C9}
+    .week-stepper.off-week{background:color-mix(in srgb, var(--att-etc) 18%, var(--bg))}
+    .week-stepper.off-week .week-main{color:var(--att-etc-fg)}
     .week-arrow{width:44px;height:44px;border:none;background:transparent;font-size:15px;
       color:var(--label-normal);border-radius:12px;cursor:pointer}
     .week-arrow:disabled{opacity:.25}
@@ -836,7 +833,7 @@
         <div className={'week-stepper' + (isCurrent ? '' : ' off-week')}>
           <button className="week-arrow" onClick={() => onChange(shiftDays(sunday, -7))} aria-label="지난 주일">◀</button>
           <div className="week-label">
-            <span className="week-main">{weekLabel(sunday)}</span>
+            <span className="week-main" aria-live="polite">{weekLabel(sunday)}</span>
             {!isCurrent && (
               <button className="week-today" onClick={() => onChange(current)}>이번 주로</button>
             )}
@@ -1077,7 +1074,7 @@
             <WeekStepper sunday={date} onChange={setDate} />
           )}
 
-          {validTab === 'roster'    && <RosterView    idToken={idToken} me={me} date={date} onChangeDate={setDate} toast={toast} onOpenDetail={setDetailId} />}
+          {validTab === 'roster'    && <RosterView    idToken={idToken} me={me} date={date} toast={toast} onOpenDetail={setDetailId} />}
           {validTab === 'prayer'    && <PrayerView    idToken={idToken} toast={toast} />}
           {validTab === 'records'   && <RecordsView   idToken={idToken} toast={toast} me={me} />}
           {validTab === 'stats'     && <StatsView     idToken={idToken} toast={toast} />}
@@ -1097,7 +1094,7 @@
     }
 
     // ──────────────── RosterView ────────────────
-    function RosterView({ idToken, me, date, onChangeDate, toast, onOpenDetail }) {
+    function RosterView({ idToken, me, date, toast, onOpenDetail }) {
       const [students, setStudents] = useState(null);
       const [att, setAtt] = useState({});
       const [attRows, setAttRows] = useState([]); // raw rows for last-attended & streak
