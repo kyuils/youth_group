@@ -652,7 +652,10 @@
     :root:not([data-theme="dark"]) .app{background:#FFF9F2}
     :root:not([data-theme="dark"]) .appbar{
       background:linear-gradient(135deg,#FFB45A 0%,#FF6B4A 100%);
+      border-bottom-color:transparent; /* 그라데이션 아래 회색 헤어라인 제거 */
     }
+    /* checked 필 텍스트를 코랄 계열로 — 기존 블루(--semantic-accent-fg-blue)와의 충돌 방지 */
+    :root:not([data-theme="dark"]) .check-pill.checked{color:var(--semantic-primary-strong)}
     :root:not([data-theme="dark"]) .appbar .appbar-title .sub{color:rgba(255,255,255,.85)}
     :root:not([data-theme="dark"]) .appbar .appbar-title .main{color:#fff}
     :root:not([data-theme="dark"]) .appbar .icon-btn,
