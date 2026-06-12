@@ -638,6 +638,37 @@
       border-bottom:1px solid var(--fill-normal);font-size:15px;line-height:1.5}
     .weekly-names{color:var(--label-normal);word-break:keep-all}
     .weekly-empty{color:var(--label-alt);font-size:14px;padding:8px 0}
+
+    /* ── v1.2 theme: 밝고 활기찬 청소년부 (라이트 전용 오버라이드) ──
+       다크 모드는 <html data-theme="dark">이므로 :root:not([data-theme="dark"])로
+       라이트에서만 적용. 기존 토큰 정의는 건드리지 않고 캐스케이드로 덮는다. */
+    :root:not([data-theme="dark"]){
+      --bg:#FFF9F2;                          /* 따뜻한 크림 화이트 (legacy alias 사용처) */
+      --semantic-primary-normal:#FF6B4A;     /* 코랄 포인트 (--primary alias도 따라옴) */
+      --semantic-primary-strong:#F25533;     /* hover — 블루 hover 잔류 방지 */
+      --semantic-primary-heavy:#DD4424;      /* active */
+      --radius-lg:16px; --radius-xl:20px; --radius-2xl:24px;
+    }
+    :root:not([data-theme="dark"]) .app{background:#FFF9F2}
+    :root:not([data-theme="dark"]) .appbar{
+      background:linear-gradient(135deg,#FFB45A 0%,#FF6B4A 100%);
+    }
+    :root:not([data-theme="dark"]) .appbar .appbar-title .sub{color:rgba(255,255,255,.85)}
+    :root:not([data-theme="dark"]) .appbar .appbar-title .main{color:#fff}
+    :root:not([data-theme="dark"]) .appbar .icon-btn,
+    :root:not([data-theme="dark"]) .appbar .btn.ghost{color:#fff;border:1px solid rgba(255,255,255,.4)}
+    /* background은 건드리지 않는다 — .student-card[data-status]의 상태 틴트 보존 */
+    :root:not([data-theme="dark"]) .student-card{
+      margin:8px 12px;box-shadow:0 2px 10px rgba(255,107,74,.06);
+    }
+    .student-name{font-size:17px;font-weight:700}
+    .student-card.compact .student-name{font-size:15px}
+    .student-card{min-height:56px}
+    .pill{min-height:40px;min-width:44px}
+    .pill.compact{min-width:40px} /* 360px 폰에서 5필 한 줄 유지 */
+    @keyframes chip-pop{0%{transform:scale(1)}40%{transform:scale(1.18)}100%{transform:scale(1)}}
+    .pill.active{animation:chip-pop .25s ease}
+    @media (prefers-reduced-motion: reduce){.pill.active{animation:none}}
     </style>
 </head>
 <body>
