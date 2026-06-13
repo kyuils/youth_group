@@ -639,6 +639,13 @@
     .weekly-names{color:var(--label-normal);word-break:keep-all}
     .weekly-empty{color:var(--label-alt);font-size:14px;padding:8px 0}
 
+    /* ── v1.3 admin stats ── */
+    .trend-chart{display:flex;align-items:flex-end;gap:4px;padding:6px 4px 0}
+    .trend-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0}
+    .trend-fill{width:100%;max-width:26px;background:var(--primary);border-radius:6px 6px 0 0}
+    .trend-num{font-size:11px;font-weight:700;color:var(--label-normal)}
+    .trend-date{font-size:10px;color:var(--label-alt);white-space:nowrap}
+
     /* ── v1.2 theme: 밝고 활기찬 청소년부 (라이트 전용 오버라이드) ──
        다크 모드는 <html data-theme="dark">이므로 :root:not([data-theme="dark"])로
        라이트에서만 적용. 기존 토큰 정의는 건드리지 않고 캐스케이드로 덮는다. */
@@ -2385,8 +2392,88 @@
     }
 
     // ──────────────── AdminView ────────────────
+    // 관리자 통계: 전체 요약 + 주별 추이 + 반별 + 학년별 (올해 고정, 클라이언트 집계)
     function AdminStats({ byClass, attRows }) {
-      return <div className="loading">통계 준비 중…</div>;
+      const classNames = Object.keys(byClass);
+      const allStudents = classNames.reduce(function(acc, c){ return acc.concat(byClass[c] || []); }, []);
+      const dates = Array.from(new Set(attRows.map(function(r){ return r.date; }))).sort();
+      const totalDates = dates.length;
+
+      if (allStudents.length === 0) return <div className="loading">학생이 없습니다.</div>;
+      if (totalDates === 0) return <div className="loading">올해 출석 기록이 아직 없습니다.</div>;
+
+      const presentRows = attRows.filter(function(r){ return PRESENT_CODES.indexOf(r.status) >= 0; });
+
+      // 전체 요약
+      const overallTotal = allStudents.length * totalDates;
+      const overallPct = Math.min(100, Math.round((presentRows.length / overallTotal) * 100));
+      const latestDate = dates[dates.length - 1];
+      const latestPresent = presentRows.filter(function(r){ return r.date === latestDate; }).length;
+      const latestPct = Math.min(100, Math.round((latestPresent / allStudents.length) * 100));
+
+      // 주별 추이 (최근 12주)
+      const trendDates = dates.slice(-12);
+      const trendMax = Math.max.apply(null, trendDates.map(function(d){
+        return presentRows.filter(function(r){ return r.date === d; }).length;
+      }).concat([1]));
+
+      return (
+        <>
+          <div className="stats-summary">
+            <div className="stats-summary-title">올해 전체 평균 출석률</div>
+            <div className="stats-summary-row">
+              <span className="big">{overallPct}%</span>
+              <span className="sub">({totalDates}회 예배 · 학생 {allStudents.length}명)</span>
+            </div>
+            <div className="stats-summary-meta">
+              최근 예배({latestDate}): <strong>{latestPresent}/{allStudents.length}명</strong> 출석 · {latestPct}%
+            </div>
+          </div>
+
+          <div className="admin-section">
+            <h4>주별 출석 추이 (최근 {trendDates.length}주)</h4>
+            <div className="trend-chart">
+              {trendDates.map(function(d){
+                const n = presentRows.filter(function(r){ return r.date === d; }).length;
+                return (
+                  <div key={d} className="trend-col" title={d + ' · ' + n + '명'}>
+                    <span className="trend-num">{n}</span>
+                    <div className="trend-fill" style={{height: Math.max(4, Math.round((n / trendMax) * 60)) + 'px'}}></div>
+                    <span className="trend-date">{Number(d.slice(5,7)) + '/' + Number(d.slice(8,10))}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <GroupStatSection title="반별 통계" groups={[]} />
+          <GroupStatSection title="학년별 통계" groups={[]} />
+        </>
+      );
+    }
+
+    // 그룹(반/학년) 통계 공용 렌더러. groups: [{name, count, present, total, pct}]
+    function GroupStatSection({ title, groups }) {
+      return (
+        <div className="admin-section">
+          <h4>{title}</h4>
+          {groups.length === 0 && <div style={{fontSize:14,color:'var(--label-alt)'}}>데이터가 없습니다.</div>}
+          {groups.map(function(g){
+            return (
+              <div key={g.name} className="stat-bar-card">
+                <div className="stat-bar-head">
+                  <span className="stat-bar-name">{g.name} <span style={{fontWeight:400,color:'var(--label-alt)'}}>({g.count}명)</span></span>
+                  <span className="stat-bar-pct">{g.pct}%</span>
+                </div>
+                <div className="stat-bar-track">
+                  <div className="stat-bar-fill" style={{width: Math.max(2, g.pct) + '%'}}></div>
+                </div>
+                <div className="stat-bar-meta">{g.present} / {g.total}회 출석</div>
+              </div>
+            );
+          })}
+        </div>
+      );
     }
     function AdminNewcomerStatus({ byClass, attRows, newcomers }) {
       return <div className="loading">새가족·등반 준비 중…</div>;
