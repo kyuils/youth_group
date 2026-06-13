@@ -647,7 +647,7 @@
     .trend-date{font-size:10px;color:var(--label-alt);white-space:nowrap}
     .grad-week{font-size:12px;font-weight:600;padding:4px 8px;border-radius:9999px;
       background:var(--fill-normal);color:var(--label-alt)}
-    .grad-week.done{background:#DDF3E4;color:#18794E}
+    .grad-week.done{background:color-mix(in srgb, var(--att-p2) 18%, var(--bg));color:var(--att-p2-fg)}
 
     /* ── v1.2 theme: 밝고 활기찬 청소년부 (라이트 전용 오버라이드) ──
        다크 모드는 <html data-theme="dark">이므로 :root:not([data-theme="dark"])로
@@ -2513,7 +2513,7 @@
       );
     }
     // 관리자: 새가족 출석 현황 + 등반 교육 진행(읽기 전용) + 올해 등반 완료자
-    function AdminNewcomerStatus({ byClass, attRows, newcomers }) {
+    function AdminNewcomerStatus({ attRows, newcomers }) {
       const year = String(new Date().getFullYear());
       const ncStudents = (newcomers && newcomers.students) || [];
       const dates = Array.from(new Set(attRows.map(function(r){ return r.date; }))).sort();
@@ -2691,7 +2691,7 @@
             <button className={seg === 'roster' ? 'active' : ''} onClick={() => setSeg('roster')}>명단·기도</button>
           </div>
           {seg === 'stats' && <AdminStats byClass={byClass} attRows={attRows} />}
-          {seg === 'newcomer' && <AdminNewcomerStatus byClass={byClass} attRows={attRows} newcomers={newcomers} />}
+          {seg === 'newcomer' && <AdminNewcomerStatus attRows={attRows} newcomers={newcomers} />}
           {seg === 'roster' && (
             <AdminRosterPrayers byClass={byClass} allPrayers={allPrayers}
               classFilter={classFilter} setClassFilter={setClassFilter} />
