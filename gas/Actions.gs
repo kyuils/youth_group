@@ -344,6 +344,23 @@ function handleGetNewcomers(body) {
       graduatedTo: String(p['등반반'] || ''),
     };
   });
+  // 등반 완료자: 등반일이 기록된 progress 행 전체 (연도 필터는 클라이언트).
+  // 등반한 학생은 반이 바뀌어 listNewcomers()에 안 잡히므로 STUDENTS 전체에서 조인한다.
+  const minById = {};
+  loadStudentsMin_().forEach((s) => { minById[String(s.id)] = s; });
+  const graduates = progressRows
+    .filter((p) => p['등반일'])
+    .map((p) => {
+      const sid = String(p['학생id']);
+      const stu = minById[sid] || {};
+      return {
+        id: sid,
+        '이름': String(stu['이름'] || ''),
+        '학년': String(stu['학년'] || ''),
+        graduatedOn: formatDate_(p['등반일']),
+        graduatedTo: String(p['등반반'] || ''),
+      };
+    });
   const result = students.map((s) => ({
     id: String(s.id),
     '이름': s['이름'],
@@ -351,7 +368,7 @@ function handleGetNewcomers(body) {
     '성별': s['성별'],
     progress: progressMap[String(s.id)] || null,
   }));
-  return { ok: true, students: result };
+  return { ok: true, students: result, graduates };
 }
 
 function handleAddNewcomer(body) {
