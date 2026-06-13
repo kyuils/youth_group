@@ -645,6 +645,9 @@
     .trend-fill{width:100%;max-width:26px;background:var(--primary);border-radius:6px 6px 0 0}
     .trend-num{font-size:11px;font-weight:700;color:var(--label-normal)}
     .trend-date{font-size:10px;color:var(--label-alt);white-space:nowrap}
+    .grad-week{font-size:12px;font-weight:600;padding:4px 8px;border-radius:9999px;
+      background:var(--fill-normal);color:var(--label-alt)}
+    .grad-week.done{background:#DDF3E4;color:#18794E}
 
     /* ── v1.2 theme: 밝고 활기찬 청소년부 (라이트 전용 오버라이드) ──
        다크 모드는 <html data-theme="dark">이므로 :root:not([data-theme="dark"])로
@@ -2509,8 +2512,85 @@
         </div>
       );
     }
+    // 관리자: 새가족 출석 현황 + 등반 교육 진행(읽기 전용) + 올해 등반 완료자
     function AdminNewcomerStatus({ byClass, attRows, newcomers }) {
-      return <div className="loading">새가족·등반 준비 중…</div>;
+      const year = String(new Date().getFullYear());
+      const ncStudents = (newcomers && newcomers.students) || [];
+      const dates = Array.from(new Set(attRows.map(function(r){ return r.date; }))).sort();
+      const totalDates = dates.length;
+
+      // 올해 등반 완료자 (graduates 없는 구 GAS 응답과 하위호환)
+      const hasGradApi = !!(newcomers && newcomers.graduates);
+      const gradsThisYear = ((newcomers && newcomers.graduates) || [])
+        .filter(function(g){ return String(g.graduatedOn || '').slice(0, 4) === year; })
+        .sort(function(a,b){ return String(b.graduatedOn).localeCompare(String(a.graduatedOn)); });
+
+      const WEEKS = [1, 2, 3, 4];
+
+      return (
+        <>
+          <div className="admin-section">
+            <h4>새가족 출석 현황 (올해 {totalDates}회)</h4>
+            {ncStudents.length === 0 && <div style={{fontSize:14,color:'var(--label-alt)'}}>현재 새가족 학생이 없습니다.</div>}
+            {ncStudents.map(function(s){
+              const mine = attRows.filter(function(r){ return String(r.studentId) === String(s.id); });
+              const present = mine.filter(function(r){ return PRESENT_CODES.indexOf(r.status) >= 0; }).length;
+              const pct = totalDates > 0 ? Math.min(100, Math.round((present / totalDates) * 100)) : 0;
+              return (
+                <div key={s.id} className="stat-bar-card">
+                  <div className="stat-bar-head">
+                    <span className="stat-bar-name">{s['이름']}</span>
+                    <span className="stat-bar-pct">{pct}%</span>
+                  </div>
+                  <div className="stat-bar-track">
+                    <div className="stat-bar-fill" style={{width: Math.max(2, pct) + '%'}}></div>
+                  </div>
+                  <div className="stat-bar-meta">{present} / {totalDates}회 출석 · {s['학년']}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="admin-section">
+            <h4>등반 교육 진행 <span style={{fontWeight:400,fontSize:12,color:'var(--label-alt)'}}>(수정은 새가족 탭에서)</span></h4>
+            {ncStudents.length === 0 && <div style={{fontSize:14,color:'var(--label-alt)'}}>진행 중인 학생이 없습니다.</div>}
+            {ncStudents.map(function(s){
+              const pr = s.progress || {};
+              return (
+                <div key={s.id} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 0',borderBottom:'1px solid var(--fill-normal)'}}>
+                  <span style={{flex:1,fontSize:14,fontWeight:500}}>{s['이름']}</span>
+                  {WEEKS.map(function(w){
+                    const done = !!pr['week' + w];
+                    return (
+                      <span key={w} className={'grad-week' + (done ? ' done' : '')}
+                        title={done ? (pr['week' + w + 'Date'] || '') : ''}>
+                        {w}주{done ? ' ✓' : ''}
+                      </span>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="admin-section">
+            <h4>올해 등반 완료 ({gradsThisYear.length}명)</h4>
+            {!hasGradApi && <div style={{fontSize:14,color:'var(--label-alt)'}}>등반 명단은 GAS 재배포 후 표시됩니다.</div>}
+            {hasGradApi && gradsThisYear.length === 0 && <div style={{fontSize:14,color:'var(--label-alt)'}}>올해 등반 완료자가 없습니다.</div>}
+            {gradsThisYear.map(function(g){
+              return (
+                <div key={g.id} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 0',borderBottom:'1px solid var(--fill-normal)',fontSize:14}}>
+                  <span style={{flex:1,fontWeight:500}}>{g['이름'] || ('학생 ' + g.id)}
+                    {g['학년'] ? <span style={{fontWeight:400,color:'var(--label-alt)',marginLeft:6,fontSize:12}}>{g['학년']}</span> : null}
+                  </span>
+                  <span style={{color:'var(--label-alt)',fontSize:13}}>{g.graduatedOn}</span>
+                  <span className="sum-item" style={{fontSize:12}}>{g.graduatedTo} 반</span>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      );
     }
 
     // 관리자: 명단 + 기도제목 (v1.2의 AdminView 내용 이동, 출석 합계 섹션은 통계 세그먼트로 대체되어 삭제)
