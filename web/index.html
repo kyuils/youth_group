@@ -2417,6 +2417,40 @@
         return presentRows.filter(function(r){ return r.date === d; }).length;
       }).concat([1]));
 
+      // 반별: 기록 당시의 반(row.teacher) 기준. 분모는 현재 인원 × 예배 횟수 (스펙 §6, 100% 캡).
+      const classGroups = classNames
+        .map(function(cls){
+          const students = byClass[cls] || [];
+          if (students.length === 0) return null;
+          const present = presentRows.filter(function(r){ return r.teacher === cls; }).length;
+          const total = students.length * totalDates;
+          return { name: cls, count: students.length, present: present, total: total,
+                   pct: total > 0 ? Math.min(100, Math.round((present / total) * 100)) : 0 };
+        })
+        .filter(Boolean)
+        .sort(function(a,b){ return a.name.localeCompare(b.name, 'ko'); });
+
+      // 학년별: 현재 명단의 학년 기준 (출석 기록엔 학년 없음). 빈 학년 → '기타'.
+      const GRADE_ORDER = ['중1','중2','중3','고1','고2','고3'];
+      const gradeOf = {};
+      allStudents.forEach(function(s){
+        gradeOf[String(s.id)] = String(s['학년'] || '').trim() || '기타';
+      });
+      const gradeNames = Array.from(new Set(Object.keys(gradeOf).map(function(id){ return gradeOf[id]; })));
+      gradeNames.sort(function(a,b){
+        const ia = GRADE_ORDER.indexOf(a), ib = GRADE_ORDER.indexOf(b);
+        return (ia < 0 ? GRADE_ORDER.length : ia) - (ib < 0 ? GRADE_ORDER.length : ib);
+      });
+      const gradeGroups = gradeNames.map(function(g){
+        const members = allStudents.filter(function(s){ return gradeOf[String(s.id)] === g; });
+        const memberIds = {};
+        members.forEach(function(s){ memberIds[String(s.id)] = true; });
+        const present = presentRows.filter(function(r){ return memberIds[String(r.studentId)]; }).length;
+        const total = members.length * totalDates;
+        return { name: g, count: members.length, present: present, total: total,
+                 pct: total > 0 ? Math.min(100, Math.round((present / total) * 100)) : 0 };
+      });
+
       return (
         <>
           <div className="stats-summary">
@@ -2446,8 +2480,8 @@
             </div>
           </div>
 
-          <GroupStatSection title="반별 통계" groups={[]} />
-          <GroupStatSection title="학년별 통계" groups={[]} />
+          <GroupStatSection title="반별 통계" groups={classGroups} />
+          <GroupStatSection title="학년별 통계" groups={gradeGroups} />
         </>
       );
     }
