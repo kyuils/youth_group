@@ -2385,48 +2385,22 @@
     }
 
     // ──────────────── AdminView ────────────────
-    function AdminView({ idToken, toast, me }) {
-      const [classFilter, setClassFilter] = useState(''); // '' = all
-      const [rosters, setRosters] = useState(null);   // { byClass: { teacher: [students] } }
-      const [allAtt, setAllAtt] = useState(null);     // { rows: [...] }
-      const [allPrayers, setAllPrayers] = useState(null); // { prayers: [...] }
-      const [loading, setLoading] = useState(true);
+    function AdminStats({ byClass, attRows }) {
+      return <div className="loading">통계 준비 중…</div>;
+    }
+    function AdminNewcomerStatus({ byClass, attRows, newcomers }) {
+      return <div className="loading">새가족·등반 준비 중…</div>;
+    }
 
-      useEffect(() => {
-        setLoading(true);
-        const year = new Date().getFullYear();
-        Promise.all([
-          callApi('getAllRosters', { idToken }),
-          callApi('getAllAttendance', { idToken, year }),
-          callApi('getAllPrayers', { idToken }),
-        ]).then(([r, a, p]) => {
-          if (r.ok) setRosters(r);
-          else toast.show('명단 불러오기 실패');
-          if (a.ok) setAllAtt(a);
-          if (p.ok) setAllPrayers(p);
-          setLoading(false);
-        }).catch(() => { toast.show('네트워크 오류'); setLoading(false); });
-      }, [idToken, toast.show]);
-
-      if (loading) return <div className="loading">불러오는 중…</div>;
-
-      const byClass = (rosters && rosters.byClass) || {};
+    // 관리자: 명단 + 기도제목 (v1.2의 AdminView 내용 이동, 출석 합계 섹션은 통계 세그먼트로 대체되어 삭제)
+    function AdminRosterPrayers({ byClass, allPrayers, classFilter, setClassFilter }) {
       const classNames = Object.keys(byClass).sort();
-
       const displayClasses = classFilter ? [classFilter] : classNames;
-
-      // Attendance stats per class
-      const attRows = (allAtt && allAtt.rows) || [];
-      const allDates = Array.from(new Set(attRows.map((r) => r.date)));
-
-      // Prayers grouped by class (via student's 반)
       const prayerList = (allPrayers && allPrayers.prayers) || [];
-      // Build studentId → 반 map from rosters
       const studentClass = {};
       classNames.forEach((cls) => {
         (byClass[cls] || []).forEach((s) => { studentClass[s.id] = cls; });
       });
-
       return (
         <>
           <div style={{padding:'12px 16px'}}>
@@ -2436,27 +2410,6 @@
               {classNames.map((c) => <option key={c} value={c}>{c} 반</option>)}
             </select>
           </div>
-
-          {/* Attendance stats */}
-          <div className="admin-section">
-            <h4>출석 통계 (올해 {allDates.length}회)</h4>
-            {displayClasses.map((cls) => {
-              const students = byClass[cls] || [];
-              if (students.length === 0) return null;
-              const clsRows = attRows.filter((r) => studentClass[r.studentId] === cls);
-              const present = clsRows.filter((r) => PRESENT_CODES.includes(r.status)).length;
-              const total = students.length * allDates.length;
-              const pct = total > 0 ? Math.round((present / total) * 100) : 0;
-              return (
-                <div key={cls} className="stat-row">
-                  <span>{cls} 반 ({students.length}명)</span>
-                  <span style={{fontWeight:600}}>{present} / {total} <span style={{color:'var(--primary)'}}>{pct}%</span></span>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Student roster */}
           <div className="admin-section">
             <h4>학생 명단</h4>
             {displayClasses.map((cls) => {
@@ -2474,8 +2427,6 @@
               );
             })}
           </div>
-
-          {/* Prayers grouped by class */}
           <div className="admin-section">
             <h4>기도제목</h4>
             {displayClasses.map((cls) => {
@@ -2495,6 +2446,55 @@
             })}
             {prayerList.length === 0 && <div style={{fontSize:14,color:'var(--label-alt)'}}>기도제목이 없습니다.</div>}
           </div>
+        </>
+      );
+    }
+
+    function AdminView({ idToken, toast, me }) {
+      const [seg, setSeg] = useState('stats'); // 'stats' | 'newcomer' | 'roster'
+      const [classFilter, setClassFilter] = useState(''); // '' = all (명단·기도 세그먼트용)
+      const [rosters, setRosters] = useState(null);
+      const [allAtt, setAllAtt] = useState(null);
+      const [allPrayers, setAllPrayers] = useState(null);
+      const [newcomers, setNewcomers] = useState(null); // {students, graduates?}
+      const [loading, setLoading] = useState(true);
+
+      useEffect(() => {
+        setLoading(true);
+        const year = new Date().getFullYear();
+        Promise.all([
+          callApi('getAllRosters', { idToken }),
+          callApi('getAllAttendance', { idToken, year }),
+          callApi('getAllPrayers', { idToken }),
+          callApi('getNewcomers', { idToken }),
+        ]).then(([r, a, p, n]) => {
+          if (r.ok) setRosters(r);
+          else toast.show('명단 불러오기 실패');
+          if (a.ok) setAllAtt(a);
+          if (p.ok) setAllPrayers(p);
+          if (n.ok) setNewcomers(n);
+          setLoading(false);
+        }).catch(() => { toast.show('네트워크 오류'); setLoading(false); });
+      }, [idToken, toast.show]);
+
+      if (loading) return <div className="loading">불러오는 중…</div>;
+
+      const byClass = (rosters && rosters.byClass) || {};
+      const attRows = (allAtt && allAtt.rows) || [];
+
+      return (
+        <>
+          <div className="seg-bar">
+            <button className={seg === 'stats' ? 'active' : ''} onClick={() => setSeg('stats')}>통계</button>
+            <button className={seg === 'newcomer' ? 'active' : ''} onClick={() => setSeg('newcomer')}>새가족·등반</button>
+            <button className={seg === 'roster' ? 'active' : ''} onClick={() => setSeg('roster')}>명단·기도</button>
+          </div>
+          {seg === 'stats' && <AdminStats byClass={byClass} attRows={attRows} />}
+          {seg === 'newcomer' && <AdminNewcomerStatus byClass={byClass} attRows={attRows} newcomers={newcomers} />}
+          {seg === 'roster' && (
+            <AdminRosterPrayers byClass={byClass} allPrayers={allPrayers}
+              classFilter={classFilter} setClassFilter={setClassFilter} />
+          )}
         </>
       );
     }
