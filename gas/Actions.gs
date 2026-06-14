@@ -401,13 +401,19 @@ function handleGetNewcomers(body) {
     attendance: attByStudent[String(s.id)] || [],
     progress: progressMap[String(s.id)] || null,
   }));
-  const graduates = all.filter((s) => s.graduatedOn).map((s) => ({
-    id: String(s.id),
-    '이름': s['이름'],
-    '학년': s['학년'],
-    graduatedOn: s.graduatedOn,
-    graduatedTo: s.graduatedTo,
-  }));
+  // 등반자는 RAW_CLASS의 현재 학생 레코드에서 이름/학년을 가져온다(정보 수정 즉시 반영).
+  const minById = {};
+  loadStudentsMin_().forEach((s) => { minById[String(s.id)] = s; });
+  const graduates = all.filter((s) => s.graduatedOn).map((s) => {
+    const live = minById[String(s.id)];
+    return {
+      id: String(s.id),
+      '이름': (live && live['이름']) || s['이름'],
+      '학년': (live && live['학년']) || s['학년'],
+      graduatedOn: s.graduatedOn,
+      graduatedTo: s.graduatedTo,
+    };
+  });
   return { ok: true, students, graduates };
 }
 
@@ -600,7 +606,10 @@ function handleUpdateStudent(body) {
   const isOwn = cls === auth.teacher.trim();
   const isAdmin = hasPerm_(auth, 'read_all');
   const isNewcomerStaff = cls === '새가족' && hasPerm_(auth, 'write_newcomer');
-  if (!isOwn && !isAdmin && !isNewcomerStaff) {
+  // 새가족부 교사는 자신이 등록/등반시킨 인원(등반 후 교사 반으로 옮겨졌어도)을 수정할 수 있다.
+  const isNewcomerRecord = hasPerm_(auth, 'write_newcomer') &&
+    readNewcomerTab_().some((r) => String(r.id) === String(studentId));
+  if (!isOwn && !isAdmin && !isNewcomerStaff && !isNewcomerRecord) {
     logForbidden_(auth, 'updateStudent', body);
     return { ok: false, code: 'forbidden' };
   }
@@ -616,9 +625,52 @@ function handleUpdateStudent(body) {
   lock.waitLock(15000);
   let ok;
   try {
-    ok = toNewcomerTab ? updateNewcomerRow_(studentId, clean) : updateStudentInRawSheet_(studentId, clean);
+    if (toNewcomerTab) {
+      ok = updateNewcomerRow_(studentId, clean);
+    } else {
+      ok = updateStudentInRawSheet_(studentId, clean);
+      // 등반자: 새가족부 이력 행도 함께 갱신(등반 취소 후에도 정보 일관성 유지).
+      if (isNewcomerRecord) updateNewcomerRow_(studentId, clean);
+    }
   } finally { lock.releaseLock(); }
   if (!ok) return { ok: false, code: 'not_found' };
   invalidateCache_(['STUDENTS_MIN_v3']);
+  return { ok: true };
+}
+
+// v1.4: 등반 내용 변경 — 등반반 교체 또는 등반 취소(targetTeacher 빈 값이면 취소).
+function handleSetGraduationClass(body) {
+  const auth = authenticate(body);
+  if (!auth.ok) return auth;
+  if (!hasPerm_(auth, 'graduate') && !hasPerm_(auth, 'read_all')) {
+    logForbidden_(auth, 'setGraduationClass', body);
+    return { ok: false, code: 'forbidden' };
+  }
+  const { studentId, targetTeacher } = body;
+  if (!studentId) return { ok: false, code: 'bad_request' };
+  const nc = readNewcomerTab_().find((r) => String(r.id) === String(studentId));
+  if (!nc) return { ok: false, code: 'not_found', message: '새가족부에 없는 학생입니다' };
+  const undo = !targetTeacher || !String(targetTeacher).trim();
+  if (!undo) {
+    const cache = CacheService.getScriptCache();
+    let teacherRows = safeCacheGet_(cache, 'TEACHERS_v1');
+    if (!teacherRows) { teacherRows = readTable_(SHEET_NAMES.TEACHERS).rows; safeCachePut_(cache, 'TEACHERS_v1', teacherRows, 300); }
+    const exists = teacherRows.some((r) => String(r['이름'] || '').trim() === String(targetTeacher).trim() && isActive_(r.active));
+    if (!exists) return { ok: false, code: 'bad_request', message: '대상 교사를 찾을 수 없습니다: ' + targetTeacher };
+  }
+  const lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    if (undo) {
+      setRawClassTeacher_(studentId, '');      // 2026 반편성 반 비움 → 교사 명단에서 빠짐
+      setNewcomerGrad_(studentId, '', '');     // 새가족부 등반반/등반일 비움 → 새가족 활성 복귀
+    } else {
+      const t = String(targetTeacher).trim();
+      copyNewcomerToRawSheet_(studentId, t);   // 행 있으면 P열만 교체, 없으면 복사
+      const keepDate = nc['등반일'] ? undefined : formatDate_(new Date());
+      setNewcomerGrad_(studentId, t, keepDate); // 등반반 교체, 등반일 유지(없으면 오늘)
+    }
+  } finally { lock.releaseLock(); }
+  invalidateCache_(['STUDENTS_MIN_v3', 'ATT_IDX_v1']);
   return { ok: true };
 }

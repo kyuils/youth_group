@@ -817,6 +817,7 @@
       setNewcomerProgress:['getNewcomers'],
       graduate:           ['getNewcomers','getRoster','getAllRosters','getAttendance','getAllAttendance','getStudentDetail'],
       updateStudent:      ['getStudentDetail','getRoster','getAllRosters','getNewcomers'],
+      setGraduationClass: ['getNewcomers','getRoster','getAllRosters','getAttendance','getAllAttendance','getStudentDetail'],
     };
     function invalidateApiCache(prefixes) {
       Array.from(apiCache.keys()).forEach((k) => {
@@ -1372,7 +1373,7 @@
           {validTab === 'roster'    && <RosterView    idToken={idToken} me={me} date={date} toast={toast} onOpenDetail={setDetailId} />}
           {validTab === 'weekly'    && <WeeklyView    idToken={idToken} toast={toast} me={me} date={date} />}
           {validTab === 'prayer'    && <PrayerView    idToken={idToken} me={me} toast={toast} />}
-          {validTab === 'newcomers' && <NewcomersView idToken={idToken} toast={toast} />}
+          {validTab === 'newcomers' && <NewcomersView idToken={idToken} toast={toast} onOpenDetail={setDetailId} />}
           {validTab === 'admin'     && <AdminView     idToken={idToken} toast={toast} me={me} onOpenDetail={setDetailId} />}
 
           {detailId && <StudentDetail idToken={idToken} studentId={detailId} me={me} onClose={() => setDetailId(null)} toast={toast} />}
@@ -2388,11 +2389,12 @@
     }
 
     // ──────────────── NewcomersView ────────────────
-    function NewcomersView({ idToken, toast }) {
+    function NewcomersView({ idToken, toast, onOpenDetail }) {
       const [data, setData] = useState(null); // { students, progress }
       const [loading, setLoading] = useState(true);
       const [showForm, setShowForm] = useState(false);
-      const [graduateTarget, setGraduateTarget] = useState(null); // student object
+      const [graduateTarget, setGraduateTarget] = useState(null); // student object (등반)
+      const [changeGradTarget, setChangeGradTarget] = useState(null); // 등반 완료자 (등반반 변경)
       const [override, setOverride] = useState({}); // 즉시 반영용 (studentId -> 오늘 상태)
 
       const reload = useCallback(() => {
@@ -2504,6 +2506,7 @@
                     <div className="student-name">{s['이름']}</div>
                     <div className="student-meta">{s['학년']} · {s['성별']}</div>
                   </div>
+                  <button className="btn ghost sm" onClick={() => onOpenDetail && onOpenDetail(s.id)}>정보</button>
                   <button className="btn danger sm" onClick={() => setGraduateTarget(s)}>등반</button>
                 </div>
                 <div className="newcomer-card-bottom">
@@ -2562,6 +2565,10 @@
                       <div className="student-meta">{g['학년']} · {classLabel(g.graduatedTo)}{g.graduatedOn ? ' · ' + g.graduatedOn : ''}</div>
                     </div>
                   </div>
+                  <div className="newcomer-footer">
+                    <button className="btn ghost sm" style={{flex:1}} onClick={() => onOpenDetail && onOpenDetail(g.id)}>정보 수정</button>
+                    <button className="btn ghost sm" style={{flex:1}} onClick={() => setChangeGradTarget(g)}>등반반 변경</button>
+                  </div>
                 </div>
               ))}
             </>
@@ -2583,6 +2590,17 @@
               student={graduateTarget}
               onClose={() => setGraduateTarget(null)}
               onSuccess={() => { setGraduateTarget(null); reload(); }}
+            />
+          )}
+
+          {changeGradTarget && (
+            <GraduateDialog
+              idToken={idToken}
+              toast={toast}
+              student={changeGradTarget}
+              mode="change"
+              onClose={() => setChangeGradTarget(null)}
+              onSuccess={() => { setChangeGradTarget(null); reload(); }}
             />
           )}
 
@@ -2728,8 +2746,9 @@
     }
 
     // ──────────────── GraduateDialog ────────────────
-    function GraduateDialog({ idToken, toast, student, onClose, onSuccess }) {
-      const [targetTeacher, setTargetTeacher] = useState('');
+    function GraduateDialog({ idToken, toast, student, mode, onClose, onSuccess }) {
+      const isChange = mode === 'change'; // 등반반 변경/취소 모드 (이미 등반한 학생)
+      const [targetTeacher, setTargetTeacher] = useState(isChange ? (student.graduatedTo || '') : '');
       const [teachers, setTeachers] = useState(null);
       const [saving, setSaving] = useState(false);
 
@@ -2749,11 +2768,25 @@
       const confirm_ = () => {
         if (!targetTeacher.trim()) { toast.show('반을 선택해 주세요'); return; }
         setSaving(true);
-        callApi('graduate', { idToken, studentId: student.id, targetTeacher: targetTeacher.trim() })
+        const action = isChange ? 'setGraduationClass' : 'graduate';
+        callApi(action, { idToken, studentId: student.id, targetTeacher: targetTeacher.trim() })
           .then((r) => {
             setSaving(false);
-            if (r.ok) { toast.show(student['이름'] + ' 등반 완료'); onSuccess(); }
-            else toast.show('등반 실패: ' + (r.code || ''));
+            if (r.ok) { toast.show(student['이름'] + (isChange ? ' 등반반 변경됨' : ' 등반 완료')); onSuccess(); }
+            else toast.show((isChange ? '변경' : '등반') + ' 실패: ' + (r.code || ''));
+          })
+          .catch(() => { setSaving(false); toast.show('네트워크 오류'); });
+      };
+
+      // 등반 취소 (change 모드 전용) — 다시 새가족 활성 상태로 되돌림
+      const undoGraduate = () => {
+        if (!confirm(student['이름'] + ' 학생의 등반을 취소할까요? (다시 새가족 명단으로 돌아갑니다)')) return;
+        setSaving(true);
+        callApi('setGraduationClass', { idToken, studentId: student.id, targetTeacher: '' })
+          .then((r) => {
+            setSaving(false);
+            if (r.ok) { toast.show(student['이름'] + ' 등반 취소됨'); onSuccess(); }
+            else toast.show('등반 취소 실패: ' + (r.code || ''));
           })
           .catch(() => { setSaving(false); toast.show('네트워크 오류'); });
       };
@@ -2766,11 +2799,13 @@
 
       return (
         <div className="sheet-overlay" onClick={onClose}>
-          <div className="sheet" style={{maxHeight:'50vh'}} onClick={(e) => e.stopPropagation()}>
+          <div className="sheet" style={{maxHeight:'60vh'}} onClick={(e) => e.stopPropagation()}>
             <div className="sheet-handle" />
-            <div className="sheet-header"><h3>{student['이름']} 등반</h3></div>
+            <div className="sheet-header"><h3>{student['이름']} {isChange ? '등반반 변경' : '등반'}</h3></div>
             <div className="sheet-body">
-              <p style={{fontSize:14,color:'var(--label-alt)',margin:'0 0 16px'}}>이동할 반(교사)을 선택하세요.</p>
+              <p style={{fontSize:14,color:'var(--label-alt)',margin:'0 0 16px'}}>
+                {isChange ? '바꿀 반(교사)을 선택하세요.' : '이동할 반(교사)을 선택하세요.'}
+              </p>
               {teachers === null ? (
                 <div style={{color:'var(--label-alt)',fontSize:14}}>불러오는 중…</div>
               ) : teachers.length > 0 ? (
@@ -2786,11 +2821,16 @@
                   placeholder="교사 이름 직접 입력"
                 />
               )}
+              {isChange && (
+                <button className="btn danger" style={{width:'100%',marginTop:14}} onClick={undoGraduate} disabled={saving}>
+                  등반 취소 (새가족으로 되돌리기)
+                </button>
+              )}
             </div>
             <div className="sheet-footer" style={{display:'flex',gap:8}}>
               <button className="btn ghost" style={{flex:1}} onClick={onClose} disabled={saving}>취소</button>
               <button className="btn primary" style={{flex:1}} onClick={confirm_} disabled={saving || !targetTeacher.trim()}>
-                {saving ? '처리 중…' : '등반 확정'}
+                {saving ? '처리 중…' : (isChange ? '변경 확정' : '등반 확정')}
               </button>
             </div>
           </div>

@@ -351,6 +351,44 @@ function markNewcomerGraduated_(studentId, newTeacher) {
   }
 }
 
+// RAW_CLASS(2026 반편성)의 반(P=16열)만 변경 — 등반반 변경/취소용. teacher='' 이면 명단에서 빠짐.
+function setRawClassTeacher_(studentId, teacher) {
+  const sh = getSpreadsheet_().getSheetByName(SHEET_NAMES.RAW_CLASS);
+  if (!sh) throw new Error('Sheet not found: ' + SHEET_NAMES.RAW_CLASS);
+  const last = sh.getLastRow();
+  if (last < 2) return false;
+  const ids = sh.getRange(2, 1, last - 1, 1).getValues();
+  for (let i = 0; i < ids.length; i++) {
+    if (String(ids[i][0]) === String(studentId)) {
+      sh.getRange(i + 2, 16).setValue(teacher ? sanitizeCell_(teacher) : '');
+      return true;
+    }
+  }
+  return false;
+}
+
+// 새가족부 행의 등반반/등반일 갱신. dateVal: undefined=유지, ''=비움(등반취소), 문자열=설정.
+function setNewcomerGrad_(studentId, teacher, dateVal) {
+  const sh = getSpreadsheet_().getSheetByName(SHEET_NAMES.NEWCOMER);
+  if (!sh) throw new Error('Sheet not found: ' + SHEET_NAMES.NEWCOMER);
+  const last = sh.getLastRow();
+  if (last < 2) return false;
+  const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+  const idCol = headers.indexOf('id');
+  const gradClassCol = headers.indexOf('등반반');
+  const gradDateCol = headers.indexOf('등반일');
+  const ids = sh.getRange(2, idCol + 1, last - 1, 1).getValues();
+  for (let i = 0; i < ids.length; i++) {
+    if (String(ids[i][0]) === String(studentId)) {
+      const row = i + 2;
+      if (gradClassCol >= 0) sh.getRange(row, gradClassCol + 1).setValue(teacher ? sanitizeCell_(teacher) : '');
+      if (gradDateCol >= 0 && dateVal !== undefined) sh.getRange(row, gradDateCol + 1).setValue(dateVal);
+      return true;
+    }
+  }
+  return false;
+}
+
 // 새가족부 행 부분 수정 (학생 정보 편집 #5 — 새가족 대상).
 function updateNewcomerRow_(studentId, fields) {
   const sh = getSpreadsheet_().getSheetByName(SHEET_NAMES.NEWCOMER);

@@ -19,6 +19,7 @@ const ACTIONS = {
   getAllRosters: handleGetAllRosters,
   // v1.4 additions
   updateStudent: handleUpdateStudent,
+  setGraduationClass: handleSetGraduationClass,
 };
 
 function doPost(e) {
