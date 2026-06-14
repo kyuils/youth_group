@@ -483,6 +483,9 @@
     .newcomer-card[data-status="ABSENT"]{border-color:color-mix(in srgb, var(--att-absent) 24%, transparent)}
     .newcomer-card-bottom{padding:var(--space-8) var(--space-14) var(--space-12);border-top:1px solid var(--semantic-line-normal-alternative);display:flex;flex-wrap:wrap;gap:var(--space-6);align-items:center}
     .newcomer-footer{padding:var(--space-6) var(--space-14) var(--space-10);display:flex;gap:var(--space-8)}
+    /* 등반 완료자 — 다른 배경색으로 구분 (새가족#4) */
+    .newcomer-card.graduated{background:color-mix(in srgb, var(--att-p2) 12%, var(--semantic-background-normal-normal));border-color:color-mix(in srgb, var(--att-p2) 30%, transparent)}
+    .grad-badge{display:inline-flex;align-items:center;margin-left:var(--space-6);padding:2px var(--space-8);border-radius:var(--radius-pill);font-size:var(--type-caption2-size);font-weight:var(--weight-bold-display);background:color-mix(in srgb, var(--att-p2) 22%, transparent);color:var(--att-p2-fg)}
 
     /* ====== ADMIN ====== */
     .admin-section{padding:var(--space-12) var(--space-16);border-bottom:1px solid var(--semantic-line-solid-normal)}
@@ -543,6 +546,8 @@
 
     /* M3 — 기도제목 작성일 */
     .prayer-meta{font-size:var(--type-caption2-size);color:var(--semantic-label-alternative);margin-top:var(--space-4)}
+    /* 응답된 기도제목 (#1) — 본문 취소선 + 흐리게 */
+    .prayer-row.answered .prayer-text{text-decoration:line-through;color:var(--semantic-label-alternative)}
 
     /* M1 — Stats 요약 카드 + 학생별 progress bar (그라데이션 제거, 평면 틴트) */
     .stats-summary{
@@ -779,6 +784,8 @@
     .pill.compact{min-width:40px;min-height:40px} /* 360px 폰에서 5필 한 줄 유지, 터치 높이 40px (v1.2) */
     /* 저장 실패 재시도 칩 (v1.2) — 기존 상태 필 패턴(--att-* 변수 + color-mix)을 따라 다크 모드 호환 */
     .pill.retry{background:color-mix(in srgb, var(--att-absent) 12%, transparent);border-color:var(--att-absent);color:var(--att-absent-fg);font-weight:800}
+    /* 명단 전화 아이콘 (#11) */
+    .pill.call-pill{text-decoration:none;background:color-mix(in srgb, var(--semantic-primary-normal) 8%, transparent);border-color:color-mix(in srgb, var(--semantic-primary-normal) 26%, transparent)}
     @keyframes chip-pop{0%{transform:scale(1)}40%{transform:scale(1.18)}100%{transform:scale(1)}}
     .pill.active{animation:chip-pop .25s ease}
     @media (prefers-reduced-motion: reduce){.pill.active{animation:none}}
@@ -809,6 +816,7 @@
       addNewcomer:        ['getNewcomers','getAllRosters'],
       setNewcomerProgress:['getNewcomers'],
       graduate:           ['getNewcomers','getRoster','getAllRosters','getAttendance','getAllAttendance','getStudentDetail'],
+      updateStudent:      ['getStudentDetail','getRoster','getAllRosters','getNewcomers'],
     };
     function invalidateApiCache(prefixes) {
       Array.from(apiCache.keys()).forEach((k) => {
@@ -1292,9 +1300,11 @@
 
     // ──────────────── Shell ────────────────
     function Shell({ me, idToken, onSignOut }) {
-      // Admin with no class (e.g. 김지헌 pastor) defaults to admin tab per spec §9
+      // 새가족부 교사(#8)는 새가족부 탭으로 시작. 반 없는 관리자는 관리자 탭 (spec §9).
+      const isNewcomerStaff = me.role === 'newcomer_staff';
       const [tab, setTab] = useState(() =>
-        (!me.teacher && me.permissions.includes('read_all')) ? 'admin' : 'roster'
+        isNewcomerStaff ? 'newcomers'
+        : (!me.teacher && me.permissions.includes('read_all')) ? 'admin' : 'roster'
       );
       const [date, setDate] = useState(recentSunday());
       const [detailId, setDetailId] = useState(null);
@@ -1311,15 +1321,17 @@
       };
 
       const TABS = useMemo(() => {
+        // 새가족부 교사: 새가족부 + 기도제목만 (#8)
+        if (isNewcomerStaff) return [['newcomers','새가족부'],['prayer','기도제목']];
         const base = [['roster','출석'],['weekly','현황'],['prayer','기도제목']];
         const extra = [];
         if (me.permissions.includes('write_newcomer')) extra.push(['newcomers','새가족부']);
         if (me.permissions.includes('read_all')) extra.push(['admin','관리자']);
         return [...base, ...extra];
-      }, [me.permissions]);
+      }, [me.permissions, isNewcomerStaff]);
 
-      // If current tab disappeared after permission change, reset
-      const validTab = TABS.some(([k]) => k === tab) ? tab : 'roster';
+      // If current tab disappeared after permission change, fall back to first available
+      const validTab = TABS.some(([k]) => k === tab) ? tab : (TABS[0] ? TABS[0][0] : 'roster');
 
       return (
         <div className="app">
@@ -1359,11 +1371,11 @@
 
           {validTab === 'roster'    && <RosterView    idToken={idToken} me={me} date={date} toast={toast} onOpenDetail={setDetailId} />}
           {validTab === 'weekly'    && <WeeklyView    idToken={idToken} toast={toast} me={me} date={date} />}
-          {validTab === 'prayer'    && <PrayerView    idToken={idToken} toast={toast} />}
+          {validTab === 'prayer'    && <PrayerView    idToken={idToken} me={me} toast={toast} />}
           {validTab === 'newcomers' && <NewcomersView idToken={idToken} toast={toast} />}
-          {validTab === 'admin'     && <AdminView     idToken={idToken} toast={toast} me={me} />}
+          {validTab === 'admin'     && <AdminView     idToken={idToken} toast={toast} me={me} onOpenDetail={setDetailId} />}
 
-          {detailId && <StudentDetail idToken={idToken} studentId={detailId} onClose={() => setDetailId(null)} toast={toast} />}
+          {detailId && <StudentDetail idToken={idToken} studentId={detailId} me={me} onClose={() => setDetailId(null)} toast={toast} />}
           <Toast msg={toast.msg} />
         </div>
       );
@@ -1751,6 +1763,14 @@
                   </div>
                 </div>
                 <div className="student-actions">
+                  {(function(){
+                    const ph = String(s['연락처'] || '').replace(/[^0-9+]/g, '');
+                    return ph ? (
+                      <a href={'tel:' + ph} className="pill compact call-pill"
+                        aria-label={s['이름'] + ' 전화 걸기'} title={'전화: ' + s['연락처']}
+                        onClick={(e) => e.stopPropagation()}>📞</a>
+                    ) : null;
+                  })()}
                   {attErr[date + '|' + s.id] && (
                     <button className="pill compact retry"
                       title="저장에 실패했습니다. 탭해서 재시도"
@@ -1861,22 +1881,27 @@
     }
 
     // ──────────────── PrayerView ────────────────
-    function PrayerView({ idToken, toast }) {
+    function PrayerView({ idToken, me, toast }) {
       const [prayers, setPrayers] = useState(null);
       const [students, setStudents] = useState([]);
       const [editing, setEditing] = useState(null);
       const [loading, setLoading] = useState(true);
+      // 새가족부 교사(#8)는 본인 반이 없으므로 새가족 명단을 대상으로 기도제목을 관리.
+      const newcomerMode = !!(me && me.role === 'newcomer_staff');
 
       const reload = useCallback(() => {
         setLoading(true);
-        Promise.all([callApi('getRoster', { idToken }), callApi('getPrayers', { idToken })])
+        const rosterCall = newcomerMode
+          ? callApi('getNewcomers', { idToken })
+          : callApi('getRoster', { idToken });
+        Promise.all([rosterCall, callApi('getPrayers', { idToken })])
           .then(([r, p]) => {
-            if (r.ok) setStudents(r.students);
+            if (r.ok) setStudents(r.students || []);
             if (p.ok) setPrayers(p.prayers);
             setLoading(false);
           })
           .catch(() => { toast.show('불러오기 실패'); setLoading(false); });
-      }, [idToken, toast.show]);
+      }, [idToken, toast.show, newcomerMode]);
 
       useEffect(reload, [reload]);
 
@@ -1904,6 +1929,13 @@
           .catch(() => toast.show('네트워크 오류'));
       };
 
+      // 응답 여부 토글 (#1). 서버가 응답일을 자동 기록/해제.
+      const toggleAnswered = (p) => {
+        callApi('setPrayer', { idToken, id: p.id, studentId: p.studentId, text: p.text, active: true, answered: !p.answered })
+          .then((r) => { if (r.ok) reload(); else toast.show('저장 실패: ' + (r.code || '')); })
+          .catch(() => toast.show('네트워크 오류'));
+      };
+
       if (loading) return <div className="loading">불러오는 중…</div>;
 
       const byStudent = {};
@@ -1919,15 +1951,24 @@
                   onClick={() => setEditing({ studentId: s.id, text: '' })}>＋</button>
               </div>
               {(byStudent[s.id] || []).map((p) => (
-                <div key={p.id} style={{marginTop:8,padding:'10px 12px',background:'var(--fill-normal)',borderRadius:10,display:'flex',gap:8}}>
+                <div key={p.id} className={'prayer-row' + (p.answered ? ' answered' : '')}
+                  style={{marginTop:8,padding:'10px 12px',background:'var(--fill-normal)',borderRadius:10,display:'flex',gap:8,alignItems:'flex-start'}}>
                   <div style={{flex:1}}>
-                    <div style={{whiteSpace:'pre-wrap'}}>{p.text}</div>
-                    {p.createdAt && (
-                      <div className="prayer-meta" title={p.createdAt}>
-                        {relativeDate(p.createdAt)}
-                      </div>
-                    )}
+                    <div className="prayer-text" style={{whiteSpace:'pre-wrap'}}>{p.text}</div>
+                    <div className="prayer-meta">
+                      {p.createdAt && <span title={p.createdAt}>{relativeDate(p.createdAt)}</span>}
+                      {p.answered && (
+                        <span style={{color:'var(--status-positive)',marginLeft:6,fontWeight:700}}>
+                          · 응답됨{p.answeredOn ? ' ' + p.answeredOn : ''}
+                        </span>
+                      )}
+                    </div>
                   </div>
+                  <button className={'check-pill' + (p.answered ? ' checked' : '')}
+                    title="응답 여부" aria-pressed={p.answered}
+                    onClick={() => toggleAnswered(p)}>
+                    <span className="check-icon">{p.answered ? '✓' : '○'}</span>응답
+                  </button>
                   <button onClick={() => setEditing({ id: p.id, studentId: p.studentId, text: p.text })} style={{color:'var(--label-alt)'}}>수정</button>
                   <button onClick={() => remove(p)} style={{color:'var(--status-negative)'}}>삭제</button>
                 </div>
@@ -2154,23 +2195,48 @@
     }
 
     // ──────────────── StudentDetail ────────────────
-    function StudentDetail({ idToken, studentId, onClose, toast }) {
+    // 학생 정보 수정 가능한 필드 (#5/관리자#5). 반/id는 제외.
+    const EDITABLE_FIELDS = ['이름','성별','학년','신급','연락처','생년월일','초등학교','학교','부/모','부모님연락처','주소','비고'];
+
+    function StudentDetail({ idToken, studentId, me, onClose, toast }) {
       const [detail, setDetail] = useState(null);
       const [error, setError] = useState(null);
-      useEffect(() => {
-        let aborted = false;
-        callApi('getStudentDetail', { idToken, studentId })
+      const [editing, setEditing] = useState(false);
+      const [form, setForm] = useState({});
+      const [saving, setSaving] = useState(false);
+      // 수정 권한: 관리자, 또는 본인 반이 있는 교사(자기 반 학생만 상세를 여므로), 또는 새가족부 교사.
+      const canEdit = !!(me && (me.permissions.includes('read_all') || me.teacher || me.role === 'newcomer_staff'));
+
+      const loadDetail = useCallback(() => {
+        return callApi('getStudentDetail', { idToken, studentId })
           .then((r) => {
-            if (aborted) return;
-            if (r.ok) setDetail(r.student);
+            if (r.ok) { setDetail(r.student); setError(null); }
             else { setError(r.code || 'unknown'); toast.show('불러오기 실패'); }
           })
-          .catch(() => {
-            if (aborted) return;
-            setError('network'); toast.show('네트워크 오류');
-          });
-        return () => { aborted = true; };
+          .catch(() => { setError('network'); toast.show('네트워크 오류'); });
       }, [idToken, studentId, toast.show]);
+
+      useEffect(() => { let aborted = false; loadDetail(); return () => { aborted = true; }; }, [loadDetail]);
+
+      const startEdit = () => {
+        const f = {};
+        EDITABLE_FIELDS.forEach((k) => { f[k] = detail[k] !== undefined ? String(detail[k]) : ''; });
+        setForm(f);
+        setEditing(true);
+      };
+      const saveEdit = () => {
+        setSaving(true);
+        const fields = {};
+        EDITABLE_FIELDS.forEach((k) => { fields[k] = form[k] !== undefined ? form[k] : ''; });
+        callApi('updateStudent', { idToken, studentId, fields })
+          .then((r) => {
+            setSaving(false);
+            if (r.ok) { setEditing(false); loadDetail(); toast.show('저장됨'); }
+            else if (r.code === 'forbidden') toast.show('수정 권한이 없습니다');
+            else toast.show('저장 실패: ' + (r.code || ''));
+          })
+          .catch(() => { setSaving(false); toast.show('네트워크 오류'); });
+      };
 
       const [extra, setExtra] = useState(null);
       useEffect(() => {
@@ -2211,8 +2277,18 @@
               </>
             ) : !detail ? <div className="loading" style={{padding:40}}>불러오는 중…</div> : (
               <>
-                <div className="sheet-header"><h3>{detail['이름']}</h3></div>
+                <div className="sheet-header"><h3>{detail['이름']}{editing ? ' 정보 수정' : ''}</h3></div>
                 <div className="sheet-body">
+                  {editing ? (
+                    EDITABLE_FIELDS.map((k) => (
+                      <div key={k} className="form-row">
+                        <label className="form-label">{k}</label>
+                        <input className="form-input" value={form[k] || ''}
+                          onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))} />
+                      </div>
+                    ))
+                  ) : (
+                  <>
                   {['학년','성별','생년월일','연락처','학교','초등학교','신급','부/모','부모님연락처','주소','비고']
                     .filter((k) => detail[k])
                     .map((k) => {
@@ -2273,9 +2349,21 @@
                       </div>
                     </div>
                   )}
+                  </>
+                  )}
                 </div>
-                <div className="sheet-footer">
-                  <button className="btn ghost" style={{width:'100%'}} onClick={onClose}>닫기</button>
+                <div className="sheet-footer" style={{display:'flex',gap:8}}>
+                  {editing ? (
+                    <>
+                      <button className="btn ghost" style={{flex:1}} onClick={() => setEditing(false)} disabled={saving}>취소</button>
+                      <button className="btn primary" style={{flex:1}} onClick={saveEdit} disabled={saving}>{saving ? '저장 중…' : '저장'}</button>
+                    </>
+                  ) : (
+                    <>
+                      {canEdit && <button className="btn primary" style={{flex:1}} onClick={startEdit}>수정</button>}
+                      <button className="btn ghost" style={{flex:1}} onClick={onClose}>닫기</button>
+                    </>
+                  )}
                 </div>
               </>
             )}
@@ -2295,7 +2383,7 @@
         setLoading(true);
         callApi('getNewcomers', { idToken })
           .then((r) => {
-            if (r.ok) setData({ students: r.students, progress: r.progress || {} });
+            if (r.ok) setData({ students: r.students, graduates: r.graduates || [] });
             else toast.show('새가족 명단 불러오기 실패: ' + (r.code || ''));
             setLoading(false);
           })
@@ -2344,20 +2432,38 @@
       if (loading) return <div className="loading">불러오는 중…</div>;
 
       const students = (data && data.students) || [];
-      const progress = (data && data.progress) || {};
-      // progress keyed by studentId → { '1주': bool, '2주': bool, '3주': bool, '4주': bool }
+      const graduates = (data && data.graduates) || [];
+      const year = String(new Date().getFullYear());
+      const gradsThisYear = graduates.filter((g) => String(g.graduatedOn || '').slice(0,4) === year);
+      // 새가족부 통계 (#8): 활성/등반/이번주 출석/교육완료(4주)
+      const todayCount = students.filter((s) => PRESENT_CODES.indexOf(s.todayStatus) >= 0).length;
+      const eduDone = students.filter((s) => {
+        const p = s.progress || {};
+        return p.week1 && p.week2 && p.week3 && p.week4;
+      }).length;
 
       return (
         <>
+          <div className="stats-summary">
+            <div className="stats-summary-title">새가족부 통계</div>
+            <div className="stats-summary-row">
+              <span className="big">{students.length}<span style={{fontSize:14}}>명</span></span>
+              <span className="sub">진행 중 · 올해 등반 {gradsThisYear.length}명</span>
+            </div>
+            <div className="stats-summary-meta">
+              오늘 출석 <strong>{todayCount}명</strong> · 4주 교육 완료 <strong>{eduDone}명</strong>
+            </div>
+          </div>
+
           <div style={{padding:'12px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
             <div style={{fontSize:14,color:'var(--label-alt)'}}>{students.length}명의 새가족</div>
             <button className="btn primary sm" onClick={() => setShowForm(true)}>＋ 새가족 추가</button>
           </div>
 
-          {students.length === 0 && <div className="loading">새가족이 없습니다.</div>}
+          {students.length === 0 && graduates.length === 0 && <div className="loading">새가족이 없습니다.</div>}
 
           {students.map((s) => {
-            const prog = progress[s.id] || {};
+            const prog = s.progress || {};
             // today's attendance
             const todayAtt = s.todayStatus || null;
             return (
@@ -2381,8 +2487,7 @@
                 <div className="newcomer-card-bottom" style={{borderTop:'none',paddingTop:0}}>
                   <div style={{fontSize:11,color:'var(--label-alt)',fontWeight:600,marginRight:4}}>교육</div>
                   {[1,2,3,4].map((w) => {
-                    const key = `${w}주`;
-                    const checked = !!prog[key];
+                    const checked = !!prog['week' + w];
                     return (
                       <button key={w}
                         className={'check-pill' + (checked ? ' checked' : '')}
@@ -2396,6 +2501,25 @@
               </div>
             );
           })}
+
+          {/* 등반 완료자 — 배경색으로 구분 (새가족#4) */}
+          {graduates.length > 0 && (
+            <>
+              <div className="section-head">등반 완료 ({graduates.length}명)</div>
+              {graduates.map((g) => (
+                <div className="newcomer-card graduated" key={'g_' + g.id}>
+                  <div className="newcomer-card-top">
+                    <div style={{flex:1}}>
+                      <div className="student-name">{g['이름']}
+                        <span className="grad-badge">등반</span>
+                      </div>
+                      <div className="student-meta">{g['학년']} · {classLabel(g.graduatedTo)}{g.graduatedOn ? ' · ' + g.graduatedOn : ''}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
 
           {showForm && (
             <NewcomerForm
@@ -2989,7 +3113,7 @@
     }
 
     // 관리자: 명단 + 기도제목 (v1.2의 AdminView 내용 이동, 출석 합계 섹션은 통계 세그먼트로 대체되어 삭제)
-    function AdminRosterPrayers({ byClass, allPrayers, classFilter, setClassFilter }) {
+    function AdminRosterPrayers({ byClass, allPrayers, classFilter, setClassFilter, onOpenDetail }) {
       const classNames = Object.keys(byClass).sort();
       const displayClasses = classFilter ? [classFilter] : classNames;
       const prayerList = (allPrayers && allPrayers.prayers) || [];
@@ -3014,8 +3138,9 @@
                 <div key={cls} style={{marginBottom:12}}>
                   <div className="class-group-head">{classLabel(cls)}</div>
                   {students.map((s) => (
-                    <div key={s.id} style={{fontSize:14,padding:'4px 0',borderBottom:'1px solid var(--fill-normal)',display:'flex',gap:8}}>
-                      <span style={{flex:1,fontWeight:500}}>{s['이름']}</span>
+                    <div key={s.id} style={{fontSize:14,padding:'4px 0',borderBottom:'1px solid var(--fill-normal)',display:'flex',gap:8,alignItems:'center'}}>
+                      <button style={{flex:1,fontWeight:500,textAlign:'left',color:'var(--primary)'}}
+                        onClick={() => onOpenDetail && onOpenDetail(s.id)}>{s['이름']}</button>
                       <span style={{color:'var(--label-alt)',fontSize:12}}>{s['학년']} · {s['성별']}</span>
                     </div>
                   ))}
@@ -3046,7 +3171,7 @@
       );
     }
 
-    function AdminView({ idToken, toast, me }) {
+    function AdminView({ idToken, toast, me, onOpenDetail }) {
       const [seg, setSeg] = useState('stats'); // 'stats' | 'newcomer' | 'roster'
       const [classFilter, setClassFilter] = useState(''); // '' = all (명단·기도 세그먼트용)
       const [rosters, setRosters] = useState(null);
@@ -3089,7 +3214,7 @@
           {seg === 'newcomer' && <AdminNewcomerStatus attRows={attRows} newcomers={newcomers} />}
           {seg === 'roster' && (
             <AdminRosterPrayers byClass={byClass} allPrayers={allPrayers}
-              classFilter={classFilter} setClassFilter={setClassFilter} />
+              classFilter={classFilter} setClassFilter={setClassFilter} onOpenDetail={onOpenDetail} />
           )}
         </>
       );

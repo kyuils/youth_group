@@ -17,6 +17,8 @@ const ACTIONS = {
   getAllAttendance: handleGetAllAttendance,
   getAllPrayers: handleGetAllPrayers,
   getAllRosters: handleGetAllRosters,
+  // v1.4 additions
+  updateStudent: handleUpdateStudent,
 };
 
 function doPost(e) {
@@ -40,7 +42,7 @@ function doPost(e) {
 
 // Build tag — bumped whenever code is materially changed. Lets us check
 // whether the deployment captured the latest IDE snapshot by hitting GET /exec.
-const BUILD_TAG = 'v1.1.7-perf-smartread-tokcache';
+const BUILD_TAG = 'v1.4.0-newcomer-tab-prayer-answered-student-edit';
 
 function doGet(e) {
   // Health check only. The HTML is hosted on GitHub Pages.

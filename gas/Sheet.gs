@@ -14,8 +14,12 @@ const SHEET_NAMES = {
   ATTENDANCE: 'ATTENDANCE',
   PRAYERS: 'PRAYERS',
   NEWCOMER_PROGRESS: 'NEWCOMER_PROGRESS',
+  NEWCOMER: '새가족부',          // v1.4: 새가족 전용 탭 (등록은 여기, 등반 시 RAW_CLASS로 복사)
   RAW_CLASS: '2026 반편성',
 };
+
+// v1.4 새가족부 탭 컬럼 순서 (등록·등반·교육 관리용).
+const NEWCOMER_HEADERS = ['id','이름','성별','연락처','생년월일','학교','학년','부모님연락처','주소','비고','등반반','등반일','active'];
 
 function getSpreadsheet_() {
   const id = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
@@ -139,7 +143,9 @@ function lookupTeacher(email) {
 // cache miss costs one narrow column scan + ~220 full rows instead of 50k.
 function loadStudentsMin_() {
   const cache = CacheService.getScriptCache();
-  let minimal = safeCacheGet_(cache, 'STUDENTS_MIN_v2');
+  // v3: 연락처 추가 (명단 전화 아이콘 #11 / 현황 결석자 연락 칩). v2 캐시와 키가 달라
+  // 배포 직후 자연히 새 프로젝션으로 채워진다.
+  let minimal = safeCacheGet_(cache, 'STUDENTS_MIN_v3');
   if (!minimal) {
     const rows = readTableSmart_(SHEET_NAMES.STUDENTS, '이름').rows;
     minimal = rows.map((r) => ({
@@ -148,12 +154,43 @@ function loadStudentsMin_() {
       '이름': r['이름'],
       '학년': r['학년'],
       '성별': r['성별'],
+      '연락처': r['연락처'],
       active: r.active,
     }));
     // 10 min — writes invalidate via invalidateCache_, so longer TTL is safe.
-    safeCachePut_(cache, 'STUDENTS_MIN_v2', minimal, 600);
+    safeCachePut_(cache, 'STUDENTS_MIN_v3', minimal, 600);
   }
   return minimal;
+}
+
+// v1.4: 새가족부 탭 읽기 (객체 배열, _rowIndex 포함). 캐시 5분.
+function readNewcomerTab_() {
+  const ss = getSpreadsheet_();
+  const sh = ss.getSheetByName(SHEET_NAMES.NEWCOMER);
+  if (!sh) return []; // 탭 미생성 시 빈 목록 (마이그레이션 전 하위호환)
+  const last = sh.getLastRow();
+  const lastCol = sh.getLastColumn();
+  if (last < 2 || lastCol < 1) return [];
+  const values = sh.getRange(1, 1, last, lastCol).getValues();
+  const headers = values[0].map(String);
+  return values.slice(1).map((row, i) => {
+    const obj = { _rowIndex: i + 2 };
+    headers.forEach((h, j) => obj[h] = row[j]);
+    return obj;
+  }).filter((r) => String(r['이름'] || '').trim() !== '');
+}
+
+// 새가족부 학생을 출석/권한 코드가 기대하는 최소 형태로 변환 (반='새가족' 합성).
+function newcomerAsMin_(r) {
+  return {
+    id: r.id,
+    '반': '새가족',
+    '이름': r['이름'],
+    '학년': r['학년'],
+    '성별': r['성별'],
+    '연락처': r['연락처'],
+    active: r.active,
+  };
 }
 
 function listStudentsForTeacher(teacherName, opts) {
@@ -169,26 +206,40 @@ function listStudentsForTeacher(teacherName, opts) {
   return minimal.filter((r) => hasContent(r) && String(r['반']).trim() === teacherName.trim() && isActive_(r.active));
 }
 
+// v1.4: 새가족부 탭에서 활성 새가족 읽기. graduated 플래그/등반정보 포함.
 function listNewcomers() {
-  return loadStudentsMin_().filter((r) =>
-    String(r['이름'] || '').trim() !== '' &&
-    String(r['반']).trim() === '새가족' &&
-    isActive_(r.active)
-  );
+  return readNewcomerTab_()
+    .filter((r) => isActive_(r.active))
+    .map((r) => ({
+      id: r.id,
+      '반': '새가족',
+      '이름': r['이름'],
+      '학년': r['학년'],
+      '성별': r['성별'],
+      '연락처': r['연락처'],
+      graduatedTo: String(r['등반반'] || ''),
+      graduatedOn: r['등반일'] ? formatDate_(r['등반일']) : '',
+      _rowIndex: r._rowIndex,
+    }));
 }
 
 function getNextStudentId_() {
-  const sh = getSpreadsheet_().getSheetByName(SHEET_NAMES.RAW_CLASS);
-  if (!sh) throw new Error('Sheet not found: ' + SHEET_NAMES.RAW_CLASS);
-  const last = sh.getLastRow();
-  if (last < 2) return 1;
-  const vals = sh.getRange(2, 1, last - 1, 1).getValues();
   let maxId = 0;
-  for (let i = 0; i < vals.length; i++) {
-    const v = vals[i][0];
-    const n = Number(v);
-    if (!isNaN(n) && n > maxId) maxId = n;
-  }
+  const scan = (sh) => {
+    if (!sh) return;
+    const last = sh.getLastRow();
+    if (last < 2) return;
+    const vals = sh.getRange(2, 1, last - 1, 1).getValues();
+    for (let i = 0; i < vals.length; i++) {
+      const n = Number(vals[i][0]);
+      if (!isNaN(n) && n > maxId) maxId = n;
+    }
+  };
+  const ss = getSpreadsheet_();
+  const raw = ss.getSheetByName(SHEET_NAMES.RAW_CLASS);
+  if (!raw) throw new Error('Sheet not found: ' + SHEET_NAMES.RAW_CLASS);
+  scan(raw);
+  scan(ss.getSheetByName(SHEET_NAMES.NEWCOMER)); // 새가족부 id와도 충돌 방지
   return maxId + 1;
 }
 
@@ -204,47 +255,150 @@ function sanitizeCell_(v) {
   return /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
 }
 
+// v1.4: 새가족 등록은 별도 '새가족부' 탭에 기록 (등반 시 RAW_CLASS로 복사).
 function appendNewcomerRow_(obj) {
+  const sh = getSpreadsheet_().getSheetByName(SHEET_NAMES.NEWCOMER);
+  if (!sh) throw new Error('Sheet not found: ' + SHEET_NAMES.NEWCOMER + ' (마이그레이션 migration_v14_newcomer_tab 실행 필요)');
+  // NEWCOMER_HEADERS 순서: id,이름,성별,연락처,생년월일,학교,학년,부모님연락처,주소,비고,등반반,등반일,active
+  const rowObj = {
+    id: obj['번호'],
+    '이름': sanitizeCell_(obj['이름']),
+    '성별': sanitizeCell_(obj['성별']),
+    '연락처': sanitizeCell_(obj['연락처']),
+    '생년월일': sanitizeCell_(obj['생년월일']),
+    '학교': sanitizeCell_(obj['학교']),
+    '학년': sanitizeCell_(obj['학년']),
+    '부모님연락처': sanitizeCell_(obj['부모님연락처']),
+    '주소': sanitizeCell_(obj['주소']),
+    '비고': sanitizeCell_(obj['비고'] || ''),
+    '등반반': '',
+    '등반일': '',
+    'active': true,
+  };
+  sh.appendRow(rowFromObj_(NEWCOMER_HEADERS, rowObj));
+}
+
+// 새가족부 학생 한 명을 RAW_CLASS(2026 반편성)로 복사 — 등반 시. 같은 id 사용해
+// 출석 이력(studentId 키)이 그대로 이어진다. P열(반)에 교사명을 넣어 교사 명단에 노출.
+function copyNewcomerToRawSheet_(studentId, newTeacher) {
+  const nc = readNewcomerTab_().find((r) => String(r.id) === String(studentId));
+  if (!nc) throw new Error('새가족부에서 학생을 찾을 수 없습니다: ' + studentId);
   const sh = getSpreadsheet_().getSheetByName(SHEET_NAMES.RAW_CLASS);
   if (!sh) throw new Error('Sheet not found: ' + SHEET_NAMES.RAW_CLASS);
-  // Column layout: A=번호, B=교사명(공란), C=이름, D=출결(공란), E=성별,
-  //   F=연락처, G=생년월일, H=초등학교(공란), I=학교, J=학년, K=신급(공란),
-  //   L=부/모(공란), M=부모님연락처, N=비고([새가족] prefix), O=주소, P=반=새가족
+  // 이미 RAW_CLASS에 같은 id가 있으면 (중복 복사 방지) P열만 갱신.
+  const last = sh.getLastRow();
+  if (last >= 2) {
+    const ids = sh.getRange(2, 1, last - 1, 1).getValues();
+    for (let i = 0; i < ids.length; i++) {
+      if (String(ids[i][0]) === String(studentId)) {
+        sh.getRange(i + 2, 16).setValue(sanitizeCell_(newTeacher)); // P=반
+        return;
+      }
+    }
+  }
+  // RAW_CLASS 컬럼: A=번호,B=교사명,C=이름,D=출결,E=성별,F=연락처,G=생년월일,
+  //   H=초등학교,I=학교,J=학년,K=신급,L=부/모,M=부모님연락처,N=비고,O=주소,P=반
   const row = [
-    obj['번호'],                                  // A (number, safe)
-    '',                                           // B 교사명 공란
-    sanitizeCell_(obj['이름']),                   // C
-    '',                                           // D 출결 공란
-    sanitizeCell_(obj['성별']),                   // E
-    sanitizeCell_(obj['연락처']),                 // F
-    sanitizeCell_(obj['생년월일']),               // G
-    '',                                           // H 초등학교 공란
-    sanitizeCell_(obj['학교']),                   // I
-    sanitizeCell_(obj['학년']),                   // J
-    '',                                           // K 신급 공란
-    '',                                           // L 부/모 공란
-    sanitizeCell_(obj['부모님연락처']),           // M
-    '[새가족] ' + sanitizeCell_(obj['비고'] || ''), // N (prefix is constant, OK)
-    sanitizeCell_(obj['주소']),                   // O
-    '새가족',                                     // P (constant, OK)
+    nc.id,                               // A
+    sanitizeCell_(newTeacher),           // B 교사명
+    sanitizeCell_(nc['이름']),           // C
+    '',                                  // D 출결
+    sanitizeCell_(nc['성별']),           // E
+    sanitizeCell_(nc['연락처']),         // F
+    sanitizeCell_(nc['생년월일']),       // G
+    '',                                  // H 초등학교
+    sanitizeCell_(nc['학교']),           // I
+    sanitizeCell_(nc['학년']),           // J
+    '',                                  // K 신급
+    '',                                  // L 부/모
+    sanitizeCell_(nc['부모님연락처']),   // M
+    sanitizeCell_(nc['비고']),           // N
+    sanitizeCell_(nc['주소']),           // O
+    sanitizeCell_(newTeacher),           // P 반=교사명
   ];
-  // sh.appendRow() inserts after sheet.getLastRow(), which may include phantom
-  // blank rows from earlier sheet expansions, leaving a big gap below real data.
-  // Find the true last data row by scanning the 이름 column (C) upward.
-  // Header occupies rows 1-2; data starts at row 3.
+  // 팬텀 행 회피: 이름 컬럼(C)을 위로 스캔해 실제 마지막 데이터 행을 찾는다.
   const lastMetaRow = sh.getLastRow();
   let lastDataRow = 2;
   if (lastMetaRow >= 3) {
     const names = sh.getRange(3, 3, lastMetaRow - 2, 1).getValues();
     for (let i = names.length - 1; i >= 0; i--) {
-      if (String(names[i][0] == null ? '' : names[i][0]).trim() !== '') {
-        lastDataRow = i + 3;
-        break;
-      }
+      if (String(names[i][0] == null ? '' : names[i][0]).trim() !== '') { lastDataRow = i + 3; break; }
     }
   }
-  const insertRow = lastDataRow + 1;
-  sh.getRange(insertRow, 1, 1, row.length).setValues([row]);
+  sh.getRange(lastDataRow + 1, 1, 1, row.length).setValues([row]);
+}
+
+// 새가족부 행에 등반반/등반일 기록 (등반 후에도 명단에 남아 배경색으로 구분 — 새가족#4).
+function markNewcomerGraduated_(studentId, newTeacher) {
+  const sh = getSpreadsheet_().getSheetByName(SHEET_NAMES.NEWCOMER);
+  if (!sh) throw new Error('Sheet not found: ' + SHEET_NAMES.NEWCOMER);
+  const last = sh.getLastRow();
+  if (last < 2) return;
+  const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+  const idCol = headers.indexOf('id');
+  const gradClassCol = headers.indexOf('등반반');
+  const gradDateCol = headers.indexOf('등반일');
+  const ids = sh.getRange(2, idCol + 1, last - 1, 1).getValues();
+  const today = formatDate_(new Date());
+  for (let i = 0; i < ids.length; i++) {
+    if (String(ids[i][0]) === String(studentId)) {
+      const row = i + 2;
+      if (gradClassCol >= 0) sh.getRange(row, gradClassCol + 1).setValue(sanitizeCell_(newTeacher));
+      if (gradDateCol >= 0) sh.getRange(row, gradDateCol + 1).setValue(today);
+      return;
+    }
+  }
+}
+
+// 새가족부 행 부분 수정 (학생 정보 편집 #5 — 새가족 대상).
+function updateNewcomerRow_(studentId, fields) {
+  const sh = getSpreadsheet_().getSheetByName(SHEET_NAMES.NEWCOMER);
+  if (!sh) throw new Error('Sheet not found: ' + SHEET_NAMES.NEWCOMER);
+  const last = sh.getLastRow();
+  if (last < 2) return false;
+  const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+  const idCol = headers.indexOf('id');
+  const ids = sh.getRange(2, idCol + 1, last - 1, 1).getValues();
+  for (let i = 0; i < ids.length; i++) {
+    if (String(ids[i][0]) === String(studentId)) {
+      const row = i + 2;
+      Object.keys(fields).forEach((k) => {
+        const c = headers.indexOf(k);
+        if (c >= 0) sh.getRange(row, c + 1).setValue(sanitizeCell_(fields[k]));
+      });
+      return true;
+    }
+  }
+  return false;
+}
+
+// RAW_CLASS(2026 반편성) 고정 컬럼 매핑 — appendNewcomerRow_/updateClassInRawSheet_와
+// 동일한 검증된 레이아웃. RAW_CLASS는 헤더가 1~2행일 수 있어 헤더명 조회 대신 위치를 쓴다.
+// A=1 번호(id), B=2 교사명, C=3 이름, D=4 출결, E=5 성별, F=6 연락처, G=7 생년월일,
+// H=8 초등학교, I=9 학교, J=10 학년, K=11 신급, L=12 부/모, M=13 부모님연락처, N=14 비고, O=15 주소, P=16 반
+const RAW_CLASS_COL = {
+  '이름': 3, '성별': 5, '연락처': 6, '생년월일': 7, '초등학교': 8, '학교': 9,
+  '학년': 10, '신급': 11, '부/모': 12, '부모님연락처': 13, '비고': 14, '주소': 15,
+};
+
+// RAW_CLASS 학생 정보 수정 (학생 정보 편집 #5 — 일반 학생 대상). id(A)/반(P)은 변경하지 않는다.
+function updateStudentInRawSheet_(studentId, fields) {
+  const sh = getSpreadsheet_().getSheetByName(SHEET_NAMES.RAW_CLASS);
+  if (!sh) throw new Error('Sheet not found: ' + SHEET_NAMES.RAW_CLASS);
+  const last = sh.getLastRow();
+  if (last < 2) return false;
+  const ids = sh.getRange(2, 1, last - 1, 1).getValues(); // A=번호(id)
+  for (let i = 0; i < ids.length; i++) {
+    if (String(ids[i][0]) === String(studentId)) {
+      const row = i + 2;
+      Object.keys(fields).forEach((k) => {
+        const col = RAW_CLASS_COL[k];
+        if (col) sh.getRange(row, col).setValue(sanitizeCell_(fields[k]));
+      });
+      return true;
+    }
+  }
+  return false;
 }
 
 function updateClassInRawSheet_(studentId, newTeacher) {
@@ -371,19 +525,32 @@ function recordGraduation_(studentId, targetTeacher, recorder) {
   ]);
 }
 
-// Full-row lookup (all PII columns) — only for getStudentDetail.
+// Full-row lookup (all PII columns) — for getStudentDetail. v1.4: 새가족부 탭도 조회.
 function findStudentById_(id) {
   const all = readTableSmart_(SHEET_NAMES.STUDENTS, '이름').rows;
-  return all.find((r) => String(r.id) === String(id));
+  const found = all.find((r) => String(r.id) === String(id));
+  if (found) return found;
+  // 등반 전 새가족은 STUDENTS(2026 반편성)에 없으므로 새가족부 탭에서 찾아 반='새가족'으로 반환.
+  const nc = readNewcomerTab_().find((r) => String(r.id) === String(id));
+  if (nc) {
+    const out = {};
+    Object.keys(nc).forEach((k) => { out[k] = nc[k]; });
+    out['반'] = '새가족';
+    return out;
+  }
+  return undefined;
 }
 
-// Cached minimal lookup (id/반/이름/학년/성별/active) — for permission checks
-// and attendance writes. Avoids the full-width sheet read on every save.
+// Cached minimal lookup (id/반/이름/학년/성별/연락처/active) — for permission checks
+// and attendance writes. v1.4: STUDENTS에 없으면 새가족부 탭에서 찾는다.
 function findStudentMinById_(id) {
-  return loadStudentsMin_().find((r) => String(r.id) === String(id)) || null;
+  const inStudents = loadStudentsMin_().find((r) => String(r.id) === String(id));
+  if (inStudents) return inStudents;
+  const nc = readNewcomerTab_().find((r) => String(r.id) === String(id) && isActive_(r.active));
+  return nc ? newcomerAsMin_(nc) : null;
 }
 
 function invalidateCache_(keys) {
   const c = CacheService.getScriptCache();
-  (keys || ['STUDENTS_MIN_v2', 'TEACHERS_v1', 'ATT_IDX_v1']).forEach((k) => c.remove(k));
+  (keys || ['STUDENTS_MIN_v3', 'TEACHERS_v1', 'ATT_IDX_v1']).forEach((k) => c.remove(k));
 }

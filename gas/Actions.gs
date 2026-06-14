@@ -6,7 +6,8 @@ function handleWhoami(body) {
 }
 
 // Minimal roster fields (PII reduced — Section 6.3).
-const ROSTER_FIELDS = ['id', '이름', '학년', '성별'];
+// v1.4: 연락처 추가 — 명단 전화 아이콘(#11) / 현황 결석자 연락 칩.
+const ROSTER_FIELDS = ['id', '이름', '학년', '성별', '연락처'];
 
 function handleGetRoster(body) {
   const auth = authenticate(body);
@@ -251,14 +252,20 @@ function upsertAttendance_({ date, studentId, studentName, teacher, status, etcT
 
 // Prayers ================================================
 
-const PRAYER_HEADERS = ['id','학생id','반','작성자email','작성시각','수정시각','내용','active'];
+// v1.4: 응답/응답일 컬럼 추가 (기도제목 응답 여부 체크 #1).
+const PRAYER_HEADERS = ['id','학생id','반','작성자email','작성시각','수정시각','내용','active','응답','응답일'];
 
 function handleGetPrayers(body) {
   const auth = authenticate(body);
   if (!auth.ok) return auth;
+  // 새가족부 교사(write_newcomer)는 본인 반이 없으므로 '새가족' 기도제목을 본다 (#8).
+  const canNewcomer = hasPerm_(auth, 'write_newcomer');
   const { rows } = readTable_(SHEET_NAMES.PRAYERS);
   const out = rows
-    .filter((r) => String(r['반']).trim() === auth.teacher.trim())
+    .filter((r) => {
+      const cls = String(r['반']).trim();
+      return cls === auth.teacher.trim() || (canNewcomer && cls === '새가족');
+    })
     .filter((r) => isActive_(r.active))
     .map((r) => ({
       id: String(r.id),
@@ -267,21 +274,37 @@ function handleGetPrayers(body) {
       createdAt: formatDate_(r['작성시각']),
       updatedAt: formatDate_(r['수정시각']),
       author: String(r['작성자email']),
+      answered: truthy_(r['응답']),
+      answeredOn: r['응답일'] ? formatDate_(r['응답일']) : '',
     }));
   return { ok: true, prayers: out };
+}
+
+// boolean 셀 해석 (TRUE/체크 등). isActive_와 달리 빈 값은 false.
+function truthy_(v) {
+  if (v === true) return true;
+  if (v === false || v === undefined || v === null || v === '') return false;
+  const s = String(v).trim().toUpperCase();
+  return s === 'TRUE' || s === 'Y' || s === 'YES' || s === '1' || s === 'O' || s === '응답';
 }
 
 function handleSetPrayer(body) {
   const auth = authenticate(body);
   if (!auth.ok) return auth;
-  const { id, studentId, text, active } = body;
+  const { id, studentId, text, active, answered } = body;
   if (!studentId) return { ok: false, code: 'bad_request' };
   const student = findStudentMinById_(studentId);
   if (!student) return { ok: false, code: 'not_found' };
-  if (String(student['반']).trim() !== auth.teacher.trim()) {
+  const studentClass = String(student['반']).trim();
+  // 본인 반, 또는 새가족부 교사가 새가족 학생에 대해 (#8). 관리자도 허용.
+  const canWrite = studentClass === auth.teacher.trim()
+    || (studentClass === '새가족' && hasPerm_(auth, 'write_newcomer'))
+    || hasPerm_(auth, 'read_all');
+  if (!canWrite) {
     logForbidden_(auth, 'setPrayer(student)', body);
     return { ok: false, code: 'forbidden' };
   }
+  const today = formatDate_(new Date());
   const lock = LockService.getScriptLock();
   lock.waitLock(15000);
   try {
@@ -290,25 +313,36 @@ function handleSetPrayer(body) {
       const { rows } = readTable_(SHEET_NAMES.PRAYERS);
       const target = rows.find((r) => String(r.id) === String(id));
       if (!target) return { ok: false, code: 'not_found' };
-      if (String(target['반']).trim() !== auth.teacher.trim()) {
+      const targetClass = String(target['반']).trim();
+      const canEdit = targetClass === auth.teacher.trim()
+        || (targetClass === '새가족' && hasPerm_(auth, 'write_newcomer'))
+        || hasPerm_(auth, 'read_all');
+      if (!canEdit) {
         logForbidden_(auth, 'setPrayer(target)', body);
         return { ok: false, code: 'forbidden' };
       }
+      // 응답 토글 시 응답일 자동 기록 (응답 해제 시 비움). 기존값 보존.
+      let answeredVal = (answered !== undefined) ? !!answered : truthy_(target['응답']);
+      let answeredOn = answeredVal ? (truthy_(target['응답']) && target['응답일'] ? target['응답일'] : today) : '';
       const updated = Object.assign({}, target, {
         '내용': sanitizeCell_(text !== undefined ? text : target['내용']),
         'active': active !== undefined ? active : target.active,
         '수정시각': new Date().toISOString(),
+        '응답': answeredVal,
+        '응답일': answeredOn,
       });
       updateRowByIndex_(SHEET_NAMES.PRAYERS, target._rowIndex, rowFromObj_(PRAYER_HEADERS, updated));
       return { ok: true, id };
     } else {
-      // create
+      // create — 새가족 학생이면 반='새가족'으로 기록(그룹/조회 일관성).
       const newId = Utilities.getUuid();
       const now = new Date().toISOString();
+      const prayerClass = (studentClass === '새가족') ? '새가족' : auth.teacher;
       const obj = {
-        id: newId, '학생id': studentId, '반': auth.teacher,
+        id: newId, '학생id': studentId, '반': prayerClass,
         '작성자email': auth.email, '작성시각': now, '수정시각': now,
         '내용': sanitizeCell_(text || ''), 'active': true,
+        '응답': !!answered, '응답일': answered ? today : '',
       };
       appendRow_(SHEET_NAMES.PRAYERS, rowFromObj_(PRAYER_HEADERS, obj));
       return { ok: true, id: newId };
@@ -326,49 +360,46 @@ function handleGetNewcomers(body) {
   if (!hasPerm_(auth, 'write_newcomer') && !hasPerm_(auth, 'read_all')) {
     return { ok: false, code: 'forbidden' };
   }
-  const students = listNewcomers();
+  const all = listNewcomers(); // 새가족부 활성 전체 (graduatedOn/To 포함)
   const progressRows = readNewcomerProgress_();
-  // Build progress lookup by studentId
+  // 4주 교육 진도 lookup (studentId → {week1..4, dates})
   const progressMap = {};
   progressRows.forEach((p) => {
     progressMap[String(p['학생id'])] = {
-      week1: !!p['1주'],
-      week2: !!p['2주'],
-      week3: !!p['3주'],
-      week4: !!p['4주'],
+      week1: !!p['1주'], week2: !!p['2주'], week3: !!p['3주'], week4: !!p['4주'],
       week1Date: p['1주_날짜'] ? formatDate_(p['1주_날짜']) : '',
       week2Date: p['2주_날짜'] ? formatDate_(p['2주_날짜']) : '',
       week3Date: p['3주_날짜'] ? formatDate_(p['3주_날짜']) : '',
       week4Date: p['4주_날짜'] ? formatDate_(p['4주_날짜']) : '',
-      graduatedOn: p['등반일'] ? formatDate_(p['등반일']) : '',
-      graduatedTo: String(p['등반반'] || ''),
     };
   });
-  // 등반 완료자: 등반일이 기록된 progress 행 전체 (연도 필터는 클라이언트).
-  // 등반한 학생은 반이 바뀌어 listNewcomers()에 안 잡히므로 STUDENTS 전체에서 조인한다.
-  const minById = {};
-  loadStudentsMin_().forEach((s) => { minById[String(s.id)] = s; });
-  const graduates = progressRows
-    .filter((p) => p['등반일'])
-    .map((p) => {
-      const sid = String(p['학생id']);
-      const stu = minById[sid] || {};
-      return {
-        id: sid,
-        '이름': String(stu['이름'] || ''),
-        '학년': String(stu['학년'] || ''),
-        graduatedOn: formatDate_(p['등반일']),
-        graduatedTo: String(p['등반반'] || ''),
-      };
-    });
-  const result = students.map((s) => ({
+
+  // 오늘(KST) 출석 상태 맵 — 새가족 카드의 출석 필 활성 표시용.
+  const today = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd');
+  const todayMap = {};
+  readTable_(SHEET_NAMES.ATTENDANCE).rows.forEach((r) => {
+    if (formatDate_(r['날짜']) === today && String(r['상태'] || '').trim() !== '') {
+      todayMap[String(r['학생id'])] = String(r['상태']);
+    }
+  });
+
+  // 활성(미등반) vs 등반 완료자 분리. 등반자도 새가족부에 남아 배경색 구분(새가족#4).
+  const students = all.filter((s) => !s.graduatedOn).map((s) => ({
     id: String(s.id),
     '이름': s['이름'],
     '학년': s['학년'],
     '성별': s['성별'],
+    todayStatus: todayMap[String(s.id)] || null,
     progress: progressMap[String(s.id)] || null,
   }));
-  return { ok: true, students: result, graduates };
+  const graduates = all.filter((s) => s.graduatedOn).map((s) => ({
+    id: String(s.id),
+    '이름': s['이름'],
+    '학년': s['학년'],
+    graduatedOn: s.graduatedOn,
+    graduatedTo: s.graduatedTo,
+  }));
+  return { ok: true, students, graduates };
 }
 
 function handleAddNewcomer(body) {
@@ -378,7 +409,7 @@ function handleAddNewcomer(body) {
     logForbidden_(auth, 'addNewcomer', body);
     return { ok: false, code: 'forbidden' };
   }
-  const { name, gender, phone, birthDate, grade, school, address, note } = body;
+  const { name, gender, phone, birthDate, grade, school, parentPhone, address, note } = body;
   if (!name) return { ok: false, code: 'bad_request', message: '이름 필수' };
   const lock = LockService.getScriptLock();
   lock.waitLock(15000);
@@ -393,13 +424,13 @@ function handleAddNewcomer(body) {
       '생년월일': birthDate || '',
       '학교': school || '',
       '학년': grade || '',
-      '부모님연락처': '',
+      '부모님연락처': parentPhone || '', // v1.4 fix: 이전엔 항상 공란이었음
       '주소': address || '',
       '비고': note || '',
     });
   } finally { lock.releaseLock(); }
-  // Invalidate student cache so new student appears
-  invalidateCache_(['STUDENTS_MIN_v1', 'ATT_IDX_v1']);
+  // Invalidate student cache (key fix: v1 → v3). 새가족부 탭은 캐시하지 않아 즉시 반영.
+  invalidateCache_(['STUDENTS_MIN_v3', 'ATT_IDX_v1']);
   return { ok: true, studentId: String(newId) };
 }
 
@@ -468,11 +499,13 @@ function handleGraduate(body) {
   const lock = LockService.getScriptLock();
   lock.waitLock(15000);
   try {
-    updateClassInRawSheet_(studentId, targetTeacher);
+    // v1.4: 새가족부 → 2026 반편성 복사(교사명 기재) + 새가족부에 등반 기록(배경색 구분용) + 진도시트 기록
+    copyNewcomerToRawSheet_(studentId, targetTeacher);
+    markNewcomerGraduated_(studentId, targetTeacher);
     recordGraduation_(studentId, targetTeacher, auth.email);
   } finally { lock.releaseLock(); }
-  // Invalidate student cache so graduated student moves to new class
-  invalidateCache_(['STUDENTS_MIN_v1', 'ATT_IDX_v1']);
+  // Invalidate student cache so graduated student appears in the target class roster
+  invalidateCache_(['STUDENTS_MIN_v3', 'ATT_IDX_v1']);
   return { ok: true };
 }
 
@@ -520,6 +553,8 @@ function handleGetAllPrayers(body) {
       createdAt: formatDate_(r['작성시각']),
       updatedAt: formatDate_(r['수정시각']),
       author: String(r['작성자email']),
+      answered: truthy_(r['응답']),
+      answeredOn: r['응답일'] ? formatDate_(r['응답일']) : '',
     }));
   return { ok: true, prayers: out };
 }
@@ -534,10 +569,45 @@ function handleGetAllRosters(body) {
   const byClass = {};
   allStudents.forEach((s) => {
     const cls = String(s['반'] || '').trim();
+    // 새가족은 별도(관리자 새가족 세그먼트)에서 관리 — 반별 통계 오염 방지.
+    if (!cls || cls === '새가족') return;
     if (!byClass[cls]) byClass[cls] = [];
     const out = {};
     ROSTER_FIELDS.forEach((f) => out[f] = s[f]);
     byClass[cls].push(out);
   });
   return { ok: true, byClass };
+}
+
+// v1.4: 학생 정보 수정 (#5 일반교사=본인 반 / 관리자#5=전체 / 새가족부교사=새가족).
+function handleUpdateStudent(body) {
+  const auth = authenticate(body);
+  if (!auth.ok) return auth;
+  const { studentId, fields } = body;
+  if (!studentId || !fields || typeof fields !== 'object') return { ok: false, code: 'bad_request' };
+  const student = findStudentMinById_(studentId);
+  if (!student) return { ok: false, code: 'not_found' };
+  const cls = String(student['반']).trim();
+  const isOwn = cls === auth.teacher.trim();
+  const isAdmin = hasPerm_(auth, 'read_all');
+  const isNewcomerStaff = cls === '새가족' && hasPerm_(auth, 'write_newcomer');
+  if (!isOwn && !isAdmin && !isNewcomerStaff) {
+    logForbidden_(auth, 'updateStudent', body);
+    return { ok: false, code: 'forbidden' };
+  }
+  // 편집 가능한 필드만 허용 (반/id는 변경 불가 — 등반/관리자만).
+  const ALLOWED = ['이름','성별','연락처','생년월일','초등학교','학교','학년','신급','부/모','부모님연락처','주소','비고'];
+  const clean = {};
+  ALLOWED.forEach((k) => { if (fields[k] !== undefined) clean[k] = fields[k]; });
+  if (Object.keys(clean).length === 0) return { ok: false, code: 'bad_request', message: '수정할 항목이 없습니다' };
+  const inStudents = loadStudentsMin_().some((s) => String(s.id) === String(studentId));
+  const lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  let ok;
+  try {
+    ok = inStudents ? updateStudentInRawSheet_(studentId, clean) : updateNewcomerRow_(studentId, clean);
+  } finally { lock.releaseLock(); }
+  if (!ok) return { ok: false, code: 'not_found' };
+  invalidateCache_(['STUDENTS_MIN_v3']);
+  return { ok: true };
 }
