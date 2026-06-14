@@ -163,7 +163,8 @@ function loadStudentsMin_() {
   return minimal;
 }
 
-// v1.4: 새가족부 탭 읽기 (객체 배열, _rowIndex 포함). 캐시 5분.
+// v1.4: 새가족부 탭 읽기 (객체 배열, _rowIndex 포함). 캐시 없음 — 새가족 수가 적어
+// 매 호출 시트 read로 충분하고 stale 위험을 피한다.
 function readNewcomerTab_() {
   const ss = getSpreadsheet_();
   const sh = ss.getSheetByName(SHEET_NAMES.NEWCOMER);
@@ -525,12 +526,13 @@ function recordGraduation_(studentId, targetTeacher, recorder) {
   ]);
 }
 
-// Full-row lookup (all PII columns) — for getStudentDetail. v1.4: 새가족부 탭도 조회.
+// Full-row lookup (all PII columns) — for getStudentDetail. v1.4: 새가족부 탭을 단일 소스로.
+// STUDENTS(2026 반편성)의 반='새가족' 레거시 행은 무시한다 — 마이그레이션이 같은 id를
+// 새가족부로 복사만 하고 원본을 지우지 않으므로, 새가족은 항상 새가족부에서 읽어 정합성 유지.
 function findStudentById_(id) {
   const all = readTableSmart_(SHEET_NAMES.STUDENTS, '이름').rows;
-  const found = all.find((r) => String(r.id) === String(id));
+  const found = all.find((r) => String(r.id) === String(id) && String(r['반'] || '').trim() !== '새가족');
   if (found) return found;
-  // 등반 전 새가족은 STUDENTS(2026 반편성)에 없으므로 새가족부 탭에서 찾아 반='새가족'으로 반환.
   const nc = readNewcomerTab_().find((r) => String(r.id) === String(id));
   if (nc) {
     const out = {};
@@ -542,9 +544,11 @@ function findStudentById_(id) {
 }
 
 // Cached minimal lookup (id/반/이름/학년/성별/연락처/active) — for permission checks
-// and attendance writes. v1.4: STUDENTS에 없으면 새가족부 탭에서 찾는다.
+// and attendance writes. v1.4: 반='새가족' STUDENTS 행은 무시하고 새가족부를 단일 소스로.
 function findStudentMinById_(id) {
-  const inStudents = loadStudentsMin_().find((r) => String(r.id) === String(id));
+  const inStudents = loadStudentsMin_().find(
+    (r) => String(r.id) === String(id) && String(r['반'] || '').trim() !== '새가족'
+  );
   if (inStudents) return inStudents;
   const nc = readNewcomerTab_().find((r) => String(r.id) === String(id) && isActive_(r.active));
   return nc ? newcomerAsMin_(nc) : null;

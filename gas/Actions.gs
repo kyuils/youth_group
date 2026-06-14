@@ -600,12 +600,14 @@ function handleUpdateStudent(body) {
   const clean = {};
   ALLOWED.forEach((k) => { if (fields[k] !== undefined) clean[k] = fields[k]; });
   if (Object.keys(clean).length === 0) return { ok: false, code: 'bad_request', message: '수정할 항목이 없습니다' };
-  const inStudents = loadStudentsMin_().some((s) => String(s.id) === String(studentId));
+  // 라우팅은 반 기준: 새가족(미등반)은 새가족부 탭, 그 외(일반/등반자)는 RAW_CLASS.
+  // findStudentMinById_가 이미 새가족부를 단일 소스로 보므로 cls가 정확하다.
+  const toNewcomerTab = (cls === '새가족');
   const lock = LockService.getScriptLock();
   lock.waitLock(15000);
   let ok;
   try {
-    ok = inStudents ? updateStudentInRawSheet_(studentId, clean) : updateNewcomerRow_(studentId, clean);
+    ok = toNewcomerTab ? updateNewcomerRow_(studentId, clean) : updateStudentInRawSheet_(studentId, clean);
   } finally { lock.releaseLock(); }
   if (!ok) return { ok: false, code: 'not_found' };
   invalidateCache_(['STUDENTS_MIN_v3']);
