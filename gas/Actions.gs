@@ -374,13 +374,21 @@ function handleGetNewcomers(body) {
     };
   });
 
-  // 오늘(KST) 출석 상태 맵 — 새가족 카드의 출석 필 활성 표시용.
+  // 출석 오늘 상태 + 이력 맵 — 새가족 카드의 오늘 출석 활성 표시 및 "언제 출석했는지" 표시용.
   const today = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd');
   const todayMap = {};
+  const attByStudent = {};
   readTable_(SHEET_NAMES.ATTENDANCE).rows.forEach((r) => {
-    if (formatDate_(r['날짜']) === today && String(r['상태'] || '').trim() !== '') {
-      todayMap[String(r['학생id'])] = String(r['상태']);
-    }
+    const st = String(r['상태'] || '').trim();
+    if (st === '') return;
+    const sid = String(r['학생id']);
+    const d = formatDate_(r['날짜']);
+    if (d === today) todayMap[sid] = st;
+    (attByStudent[sid] = attByStudent[sid] || []).push({ date: d, status: st, etcText: String(r['기타내용'] || '') });
+  });
+  Object.keys(attByStudent).forEach((k) => {
+    attByStudent[k].sort((a, b) => (a.date < b.date ? 1 : (a.date > b.date ? -1 : 0))); // 최근 우선
+    attByStudent[k] = attByStudent[k].slice(0, 12);
   });
 
   // 활성(미등반) vs 등반 완료자 분리. 등반자도 새가족부에 남아 배경색 구분(새가족#4).
@@ -390,6 +398,7 @@ function handleGetNewcomers(body) {
     '학년': s['학년'],
     '성별': s['성별'],
     todayStatus: todayMap[String(s.id)] || null,
+    attendance: attByStudent[String(s.id)] || [],
     progress: progressMap[String(s.id)] || null,
   }));
   const graduates = all.filter((s) => s.graduatedOn).map((s) => ({
