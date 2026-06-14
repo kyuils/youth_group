@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#0066FF">
   <title>혜림교회 청소년부 출석부</title>
+  <!-- 표지 제목용 세리프 (Claude 표지 시안) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -254,48 +258,51 @@
     }
     .login h1{font-size:var(--type-heading1-size);line-height:var(--type-heading1-line);letter-spacing:var(--type-heading1-tracking);font-weight:var(--weight-bold-display);margin:0}
     .login p{color:var(--semantic-label-alternative);margin:0}
-    /* ── 표지 cover (Claude 표지 시안: 라이트 크림 배경 + clay 아이콘 기능 카드) ──
-       LoginScreen 전용. 다크모드와 무관하게 고정 라이트. 에러/권한 화면은 generic .login 유지. */
-    .cover{
-      flex:1;display:flex;flex-direction:column;min-height:100dvh;
-      background:#FAF9F5;color:#181715;
-      padding:calc(env(safe-area-inset-top) + 36px) 24px calc(env(safe-area-inset-bottom) + 24px);
-    }
-    /* 상단 안내 배너 — 라이트 표지에서 항상 가독성 확보(테마 변수 대신 고정색) */
-    .cover .login-notice{margin:0 0 14px;background:#FFF3E0;color:#B45309}
-    .cover .inapp-banner{margin:0 0 14px;background:#FFF3E0;border-color:#F3D6A8}
-    .cover .inapp-title{color:#B45309}
-    .cover .inapp-desc{color:#3D3D3D}
+    /* ── 표지 cover (Claude 표지 시안: 다크 히어로 + 크림 바디 + clay 버튼) ──
+       LoginScreen 전용. 다크모드와 무관하게 고정. 에러/권한 화면은 generic .login 유지. */
+    .cover{flex:1;display:flex;flex-direction:column;min-height:100dvh;background:#FAF9F5;color:#181715}
 
-    .cover-main{flex:1;display:flex;flex-direction:column;justify-content:center;min-height:0}
-    .cover-brand{
-      display:inline-flex;align-items:center;gap:6px;align-self:flex-start;
-      padding:6px 12px;border-radius:9999px;background:#EFE9DE;color:#CC785C;margin-bottom:18px;
+    /* 다크 히어로 */
+    .cover-hero{
+      background:#181715;color:#FAF9F5;
+      padding:calc(env(safe-area-inset-top) + 44px) 28px 40px;
     }
-    .cover-brand-text{font-size:14px;font-weight:600;letter-spacing:-0.01em}
+    /* 안내 배너 — 다크 히어로 위에서도 항상 가독성 확보(고정색) */
+    .cover-hero .login-notice{margin:0 0 16px;background:#FFF3E0;color:#B45309}
+    .cover-hero .inapp-banner{margin:0 0 16px;background:#FFF3E0;border-color:#F3D6A8}
+    .cover-hero .inapp-title{color:#B45309}
+    .cover-hero .inapp-desc{color:#3D3D3D}
+    .cover-brand-text{font-size:14px;font-weight:500;color:#FAF9F5;letter-spacing:-0.01em;margin-bottom:22px}
     .cover-title{
-      margin:0;color:#181715;word-break:keep-all;
-      font-size:clamp(28px, 8.2vw, 32px);line-height:1.2;font-weight:700;letter-spacing:-0.03em;
+      margin:0;color:#FAF9F5;word-break:keep-all;
+      font-family:'Noto Serif KR', serif;
+      font-size:clamp(28px, 8.4vw, 32px);line-height:1.18;font-weight:600;letter-spacing:-0.01em;
     }
-    .cover-sub{margin:12px 0 0;color:#6B6B6B;word-break:keep-all;font-size:16px;line-height:1.5}
+    .cover-sub{margin:14px 0 0;color:#A09D96;word-break:keep-all;font-size:16px;line-height:1.5}
 
-    .cover-features{display:flex;flex-direction:column;gap:10px;margin-top:28px}
-    .feat-card{
-      display:flex;align-items:center;gap:14px;
-      background:#EFE9DE;border-radius:14px;padding:14px 16px;
-    }
+    /* 크림 바디 */
+    .cover-body{flex:1;display:flex;flex-direction:column;padding:28px 24px calc(env(safe-area-inset-bottom) + 24px)}
+    .cover-features{display:flex;flex-direction:column;gap:18px}
+    .feat-row{display:flex;align-items:center;gap:14px}
     .feat-icon{
-      flex-shrink:0;width:40px;height:40px;border-radius:11px;
+      flex-shrink:0;width:44px;height:44px;border-radius:12px;
       display:inline-flex;align-items:center;justify-content:center;
-      background:#FAF9F5;color:#CC785C;
+      background:#EFE9DE;color:#CC785C;
     }
     .feat-title{font-size:15px;font-weight:600;color:#181715;line-height:1.25}
-    .feat-sub{font-size:13px;color:#6B6B6B;margin-top:2px}
+    .feat-sub{font-size:13px;color:#A09D96;margin-top:2px}
 
-    /* 본문 — 로그인 버튼 + 푸터, 하단 */
-    .cover-body{display:flex;flex-direction:column;align-items:center;gap:14px;padding-top:24px}
-    .cover-gis{display:flex;justify-content:center;width:100%;min-height:44px}
-    .cover-foot{margin:0;font-size:13px;color:#989BA2;text-align:center;word-break:keep-all}
+    /* CTA — 클레이 버튼 + 그 위에 투명 GIS 버튼 오버레이(실제 로그인) */
+    .cover-cta-wrap{margin-top:auto;padding-top:28px;display:flex;flex-direction:column;gap:14px}
+    .cover-cta{position:relative;width:100%;height:54px}
+    .cta-clay{
+      position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:10px;
+      background:#CC785C;color:#fff;border-radius:14px;font-size:16px;font-weight:600;
+      pointer-events:none;box-shadow:0 6px 16px -6px rgba(204,120,92,0.5);
+    }
+    .cta-g{width:26px;height:26px;border-radius:50%;background:#fff;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+    .cta-gis{position:absolute;inset:0;z-index:2;opacity:0;display:flex;align-items:center;justify-content:center;overflow:hidden}
+    .cover-foot{margin:0;font-size:13px;color:#A09D96;text-align:center;word-break:keep-all}
 
     /* ====== STUDENT CARD ====== */
     .student-card{
@@ -1131,26 +1138,20 @@
       const inApp = detectInApp();
       return (
         <div className="cover">
-          {notice && <div className="login-notice" role="alert">{notice}</div>}
-          {inApp && <InAppNotice kind={inApp} />}
+          {/* 다크 히어로 — 브랜드 + 세리프 제목 + 부제 (Claude 표지 시안) */}
+          <div className="cover-hero">
+            {notice && <div className="login-notice" role="alert">{notice}</div>}
+            {inApp && <InAppNotice kind={inApp} />}
+            <div className="cover-brand-text">혜림교회</div>
+            <h1 className="cover-title">혜림교회 청소년부<br />출석부</h1>
+            <p className="cover-sub">등록된 교사 계정으로 로그인하세요</p>
+          </div>
 
-          <div className="cover-main">
-            <span className="cover-brand">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M12 2.2v3.2M10.4 3.6h3.2" />
-                <path d="M4.6 20.5v-9l7.4-5 7.4 5v9" />
-                <path d="M3.4 20.5h17.2" />
-                <path d="M10 20.5v-4a2 2 0 0 1 4 0v4" />
-              </svg>
-              <span className="cover-brand-text">혜림교회</span>
-            </span>
-            <h1 className="cover-title">혜림교회<br />청소년부 출석부</h1>
-            <p className="cover-sub">등록된 교사 계정으로<br />로그인하세요</p>
-
+          {/* 크림 바디 — 기능 행 + 로그인 버튼 + 푸터 */}
+          <div className="cover-body">
             <div className="cover-features">
               {COVER_FEATURES.map((f) => (
-                <div className="feat-card" key={f.title}>
+                <div className="feat-row" key={f.title}>
                   <span className="feat-icon">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                       strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -1164,11 +1165,25 @@
                 </div>
               ))}
             </div>
-          </div>
 
-          <div className="cover-body">
-            <div ref={containerRef} className="cover-gis" />
-            <p className="cover-foot">교사 전용 · 등록된 계정만 접근할 수 있습니다</p>
+            <div className="cover-cta-wrap">
+              {/* 클레이 버튼(보이는 디자인) 위에 투명한 실제 GIS 버튼을 겹쳐 클릭을 진짜 구글 로그인이 받게 한다 */}
+              <div className="cover-cta">
+                <div className="cta-clay" aria-hidden="true">
+                  <span className="cta-g">
+                    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+                      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+                      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+                      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+                      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+                    </svg>
+                  </span>
+                  <span>Google 계정으로 로그인</span>
+                </div>
+                <div ref={containerRef} className="cta-gis" />
+              </div>
+              <p className="cover-foot">교사 전용 · 등록된 계정만 접근할 수 있습니다</p>
+            </div>
           </div>
         </div>
       );
