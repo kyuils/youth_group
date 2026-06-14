@@ -2283,8 +2283,23 @@
                     EDITABLE_FIELDS.map((k) => (
                       <div key={k} className="form-row">
                         <label className="form-label">{k}</label>
-                        <input className="form-input" value={form[k] || ''}
-                          onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))} />
+                        {k === '성별' ? (
+                          <select className="form-select" value={form[k] || ''}
+                            onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))}>
+                            <option value="">선택</option>
+                            <option value="남">남</option>
+                            <option value="여">여</option>
+                          </select>
+                        ) : k === '학년' ? (
+                          <select className="form-select" value={form[k] || ''}
+                            onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))}>
+                            <option value="">선택</option>
+                            {['중1','중2','중3','고1','고2','고3'].map((g) => <option key={g} value={g}>{g}</option>)}
+                          </select>
+                        ) : (
+                          <input className="form-input" value={form[k] || ''}
+                            onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))} />
+                        )}
                       </div>
                     ))
                   ) : (
