@@ -405,31 +405,32 @@
 
     /* ====== TOAST ====== */
     .toast{
-      position:fixed;bottom:88px;left:50%;transform:translateX(-50%);
+      position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
       background:var(--semantic-inverse-background);color:var(--semantic-inverse-label);
       padding:var(--space-10) var(--space-16);border-radius:var(--radius-pill);
       font-size:var(--type-body2-size);box-shadow:var(--shadow-large);
       z-index:100;white-space:nowrap;
     }
 
-    /* ====== BOTTOM NAV ====== */
-    .bottomnav{
-      position:sticky;bottom:0;display:flex;
-      border-top:1px solid var(--semantic-line-solid-normal);
+    /* ====== TOP NAV (#6: 메뉴를 상단으로 이동) ====== */
+    .topnav{
+      position:sticky;top:calc(env(safe-area-inset-top) + var(--appbar-h));z-index:9;
+      display:flex;
+      border-bottom:1px solid var(--semantic-line-solid-normal);
       background:var(--semantic-background-normal-normal);
-      overflow-x:auto;-webkit-overflow-scrolling:touch;
-      padding-bottom:env(safe-area-inset-bottom);scrollbar-width:none;
+      overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
     }
-    .bottomnav::-webkit-scrollbar{display:none}
-    /* 탭이 6개여도 360px 폰에서 잘리지 않게 균등 분배 (M4) */
-    .bottomnav button{
-      flex:1 1 0;min-width:0;padding:var(--space-10) var(--space-4);
-      font-size:var(--type-caption2-size);letter-spacing:var(--type-caption2-tracking);
+    .topnav::-webkit-scrollbar{display:none}
+    /* 탭이 6개여도 360px 폰에서 잘리지 않게 균등 분배 */
+    .topnav button{
+      flex:1 1 0;min-width:0;padding:var(--space-12) var(--space-4);
+      font-size:var(--type-caption1-size);letter-spacing:var(--type-caption2-tracking);
       color:var(--semantic-label-alternative);white-space:nowrap;
       overflow:hidden;text-overflow:ellipsis;
-      transition:color 150ms ease;
+      border-bottom:2px solid transparent;
+      transition:color 150ms ease, border-color 150ms ease;
     }
-    .bottomnav button.active{color:var(--semantic-primary-normal);font-weight:var(--weight-bold-text)}
+    .topnav button.active{color:var(--semantic-primary-normal);font-weight:var(--weight-bold-text);border-bottom-color:var(--semantic-primary-normal)}
 
     /* ====== LOADING ====== */
     .loading{flex:1;display:flex;align-items:center;justify-content:center;color:var(--semantic-label-alternative);padding:var(--space-40) 0}
@@ -612,6 +613,20 @@
       font-size:var(--type-label2-size);font-weight:var(--weight-bold-text);
     }
 
+    /* 인앱 브라우저 안내 배너 (#0) — cover 최상단에 표시 */
+    .inapp-banner{
+      margin:calc(env(safe-area-inset-top) + var(--space-12)) var(--space-16) 0;
+      padding:var(--space-12) var(--space-14);
+      border-radius:var(--radius-lg);
+      background:color-mix(in srgb, var(--semantic-status-cautionary) 14%, var(--semantic-background-normal-normal));
+      border:1px solid color-mix(in srgb, var(--semantic-status-cautionary) 40%, transparent);
+    }
+    .inapp-title{font-size:var(--type-label1-size);font-weight:var(--weight-bold-text);color:var(--semantic-accent-fg-orange);margin-bottom:var(--space-4)}
+    .inapp-desc{font-size:var(--type-caption1-size);color:var(--semantic-label-normal);line-height:1.5;margin-bottom:var(--space-10)}
+    .inapp-actions{display:flex;gap:var(--space-8);flex-wrap:wrap}
+    /* 배너가 있으면 히어로 상단 safe-area 패딩 중복 제거 */
+    .cover:has(> .inapp-banner) .cover-hero{padding-top:var(--space-32)}
+
     /* 앱바 아이콘 버튼 (다크모드 토글) */
     .icon-btn{
       width:36px;height:36px;border-radius:var(--radius-md);
@@ -651,7 +666,7 @@
       font-weight:700;background:color-mix(in srgb, var(--att-p2) 18%, var(--bg));color:var(--att-p2-fg)}
 
     /* ── v1.2 bottom bulk button ── */
-    .bulk-fab{position:fixed;left:12px;right:12px;bottom:calc(64px + env(safe-area-inset-bottom, 0px));
+    .bulk-fab{position:fixed;left:12px;right:12px;bottom:calc(16px + env(safe-area-inset-bottom, 0px));
       display:flex;gap:8px;z-index:25}
     .bulk-main{flex:1;min-height:52px;border:none;border-radius:16px;font-size:16px;font-weight:700;
       background:var(--semantic-primary-normal,#FF6B4A);color:#fff;cursor:pointer;
@@ -958,18 +973,58 @@
       return titleName ? `${roleName} · ${titleName}` : roleName;
     }
 
+    // 반(교사) 표기 통일: '황규일 반' → '황규일교사 반' (#9). 빈 값은 빈 문자열.
+    function classLabel(teacher) {
+      const t = String(teacher || '').trim();
+      return t ? t + '교사 반' : '';
+    }
+
+    // 인앱 브라우저 감지 (#0). 카카오톡 등 임베디드 웹뷰는 구글 로그인(GIS)이
+    // disallowed_useragent로 차단되어 버튼이 안 보이거나 로그인이 실패한다.
+    // → 외부 브라우저로 열도록 안내한다.
+    function detectInApp() {
+      const ua = (navigator.userAgent || '');
+      if (/KAKAOTALK/i.test(ua)) return 'kakaotalk';
+      if (/(FBAN|FBAV|FB_IAB|Instagram|Line\/|NAVER|DaumApps|everytimeApp|wv\)|; wv)/i.test(ua)) return 'inapp';
+      return null;
+    }
+
     // 전역 주일 스테퍼. 다음 주(미래)는 이동 불가, 이번 주가 아니면 경고색 + [이번 주로].
     function WeekStepper({ sunday, onChange }) {
       const current = recentSunday();
       const isCurrent = sunday === current;
+      const dateRef = useRef(null);
+      // 라벨을 누르면 달력을 띄워 임의의 주일로 이동 (#10).
+      const openPicker = () => {
+        const el = dateRef.current;
+        if (!el) return;
+        if (el.showPicker) { try { el.showPicker(); return; } catch (e) {} }
+        el.focus(); el.click();
+      };
+      const onPick = (e) => {
+        const v = e.target.value;
+        if (!v) return;
+        const d = new Date(v + 'T00:00:00');
+        if (isNaN(d.getTime())) return;
+        // 고른 날짜가 속한 주의 주일(일요일)로 스냅. 미래는 이번 주로 제한.
+        let snapped = shiftDays(v, -d.getDay());
+        if (snapped > current) snapped = current;
+        onChange(snapped);
+      };
       return (
         <div className={'week-stepper' + (isCurrent ? '' : ' off-week')}>
           <button className="week-arrow" onClick={() => onChange(shiftDays(sunday, -7))} aria-label="지난 주일">◀</button>
-          <div className="week-label">
-            <span className="week-main" aria-live="polite">{weekLabel(sunday)}</span>
+          <div className="week-label" style={{position:'relative'}}>
+            <button className="week-main" onClick={openPicker} aria-live="polite"
+              title="날짜를 골라 이동" style={{background:'none',border:'none',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:4}}>
+              {weekLabel(sunday)} <span aria-hidden="true" style={{fontSize:12,opacity:.7}}>▾</span>
+            </button>
             {!isCurrent && (
               <button className="week-today" onClick={() => onChange(current)}>이번 주로</button>
             )}
+            <input ref={dateRef} type="date" value={sunday} max={current} onChange={onPick}
+              aria-label="주일 날짜 선택"
+              style={{position:'absolute',left:0,bottom:0,width:1,height:1,opacity:0,pointerEvents:'none'}} />
           </div>
           <button className="week-arrow" onClick={() => onChange(shiftDays(sunday, 7))} aria-label="다음 주일"
             disabled={sunday >= current}>▶</button>
@@ -1004,10 +1059,51 @@
       { name: '정은혜', grade: '중3', present: true },
     ];
 
+    // 인앱 브라우저 안내 배너 (#0) — 카카오톡 등에서 구글 로그인이 차단될 때
+    // 외부 브라우저로 열도록 유도한다.
+    function InAppNotice({ kind }) {
+      const [copied, setCopied] = useState(false);
+      const url = (typeof location !== 'undefined') ? location.href : '';
+      const openExternal = () => {
+        // 카카오톡은 전용 스킴으로 기본 브라우저에서 열 수 있다 (iOS/Android 공통).
+        try { location.href = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(url); } catch (e) {}
+      };
+      const copy = () => {
+        const done = () => { setCopied(true); setTimeout(() => setCopied(false), 1500); };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(url).then(done, done);
+        } else {
+          try {
+            const ta = document.createElement('textarea');
+            ta.value = url; document.body.appendChild(ta); ta.select();
+            document.execCommand('copy'); document.body.removeChild(ta); done();
+          } catch (e) { done(); }
+        }
+      };
+      return (
+        <div className="inapp-banner" role="alert">
+          <div className="inapp-title">⚠ 인앱 브라우저에서는 구글 로그인이 차단됩니다</div>
+          <div className="inapp-desc">
+            {kind === 'kakaotalk'
+              ? '아래 버튼을 누르거나, 우측 하단/상단 메뉴에서 "다른 브라우저로 열기"를 선택하세요.'
+              : '우측 상단 메뉴(⋯ 또는 공유)에서 "다른 브라우저로 열기" / "Safari로 열기"를 선택하세요.'}
+          </div>
+          <div className="inapp-actions">
+            {kind === 'kakaotalk' && (
+              <button className="btn primary sm" onClick={openExternal}>외부 브라우저로 열기</button>
+            )}
+            <button className="btn ghost sm" onClick={copy}>{copied ? '복사됨 ✓' : '주소 복사'}</button>
+          </div>
+        </div>
+      );
+    }
+
     function LoginScreen({ containerRef, notice }) {
+      const inApp = detectInApp();
       return (
         <div className="cover">
           {notice && <div className="login-notice" role="alert">{notice}</div>}
+          {inApp && <InAppNotice kind={inApp} />}
 
           <div className="cover-hero">
             <span className="cover-brand">
@@ -1031,7 +1127,7 @@
                 <span className="notch" />
               </div>
               <div className="cover-pv-sub">청소년부 · 교사</div>
-              <div className="cover-pv-class">김믿음 반</div>
+              <div className="cover-pv-class">김믿음교사 반</div>
               <div className="cover-pv-count">
                 <span className="big">23</span>
                 <span className="rest">/ 25명 출석</span>
@@ -1190,7 +1286,7 @@
             <div className="appbar-inner">
               <div className="appbar-title">
                 <div className="sub">청소년부 · {roleLabel(me)}</div>
-                <div className="main">{me.teacher ? me.teacher + ' 반' : me.email}</div>
+                <div className="main">{me.teacher ? classLabel(me.teacher) : me.email}</div>
               </div>
               <button className="icon-btn" onClick={toggleTheme}
                 aria-label={theme === 'dark' ? '라이트 모드로 전환' : '다크 모드로 전환'}
@@ -1210,6 +1306,12 @@
             </div>
           </div>
 
+          <div className="topnav">
+            {TABS.map(([k, label]) => (
+              <button key={k} className={validTab === k ? 'active' : ''} onClick={() => setTab(k)}>{label}</button>
+            ))}
+          </div>
+
           {(validTab === 'roster' || validTab === 'weekly') && (
             <WeekStepper sunday={date} onChange={setDate} />
           )}
@@ -1219,12 +1321,6 @@
           {validTab === 'prayer'    && <PrayerView    idToken={idToken} toast={toast} />}
           {validTab === 'newcomers' && <NewcomersView idToken={idToken} toast={toast} />}
           {validTab === 'admin'     && <AdminView     idToken={idToken} toast={toast} me={me} />}
-
-          <div className="bottomnav">
-            {TABS.map(([k, label]) => (
-              <button key={k} className={validTab === k ? 'active' : ''} onClick={() => setTab(k)}>{label}</button>
-            ))}
-          </div>
 
           {detailId && <StudentDetail idToken={idToken} studentId={detailId} onClose={() => setDetailId(null)} toast={toast} />}
           <Toast msg={toast.msg} />
@@ -1669,12 +1765,21 @@
     // Replaces window.prompt for better keyboard handling on phones.
     function EtcInputSheet({ status, subtitle, onSave, onCancel }) {
       const [value, setValue] = useState('');
+      const [error, setError] = useState(false);
       const isEtc = status === 'ETC';
-      const title = isEtc ? '외부 예배 입력' : '결석 사유 (선택)';
+      // 결석(ABSENT)은 사유 입력 필수 (#2). 외부예배(ETC)는 선택.
+      const required = status === 'ABSENT';
+      const title = isEtc ? '외부 예배 입력' : '결석 사유';
       const help = isEtc
         ? '다른 곳에서 예배드린 장소나 사유를 입력하세요. 예: 타 교회, 사경회, 수련회'
-        : '결석 사유를 입력하세요. 비워두면 사유 없이 결석으로 기록됩니다.';
-      const placeholder = isEtc ? '예: 타 교회, 사경회' : '예: 병원, 가족여행 (빈 칸도 OK)';
+        : '결석 사유를 반드시 입력해 주세요. (필수)';
+      const placeholder = isEtc ? '예: 타 교회, 사경회' : '예: 병원, 가족여행';
+
+      const trySave = () => {
+        const v = value.trim();
+        if (required && !v) { setError(true); return; }
+        onSave(value);
+      };
 
       useEffect(() => {
         const onKey = (e) => { if (e.key === 'Escape') onCancel(); };
@@ -1687,19 +1792,26 @@
           <div className="sheet" onClick={(e)=>e.stopPropagation()}>
             <div className="sheet-handle"></div>
             <div style={{padding:'4px 20px 20px'}}>
-              <h3 style={{margin:'4px 0 6px',fontSize:17,fontWeight:600}}>{title}</h3>
+              <h3 style={{margin:'4px 0 6px',fontSize:17,fontWeight:600}}>
+                {title}{required && <span style={{color:'var(--status-negative)'}}> *</span>}
+              </h3>
               {subtitle && (
                 <p style={{margin:'0 0 6px',fontSize:13,fontWeight:600,color:'var(--primary)'}}>{subtitle}</p>
               )}
               <p style={{margin:'0 0 12px',fontSize:12,color:'var(--label-alt)',lineHeight:1.45}}>{help}</p>
               <input type="text" autoFocus value={value}
-                onChange={(e) => setValue(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') onSave(value); }}
+                onChange={(e) => { setValue(e.target.value); if (error) setError(false); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') trySave(); }}
                 placeholder={placeholder}
-                style={{width:'100%',padding:'12px 14px',border:'1.5px solid var(--line-solid)',borderRadius:10,fontSize:15,fontFamily:'inherit',outline:'none'}} />
+                style={{width:'100%',padding:'12px 14px',border:'1.5px solid ' + (error ? 'var(--status-negative)' : 'var(--line-solid)'),borderRadius:10,fontSize:15,fontFamily:'inherit',outline:'none'}} />
+              {error && (
+                <p role="alert" style={{margin:'8px 0 0',fontSize:13,fontWeight:600,color:'var(--status-negative)'}}>
+                  결석 사유를 입력해야 완료됩니다.
+                </p>
+              )}
               <div style={{display:'flex',gap:8,marginTop:14}}>
                 <button className="btn ghost" style={{flex:1}} onClick={onCancel}>취소</button>
-                <button className="btn primary" style={{flex:2}} onClick={() => onSave(value)}>확인</button>
+                <button className="btn primary" style={{flex:2}} onClick={trySave}>확인</button>
               </div>
             </div>
           </div>
@@ -2274,24 +2386,36 @@
     // ──────────────── NewcomerForm ────────────────
     function NewcomerForm({ idToken, toast, onClose, onSuccess }) {
       const [form, setForm] = useState({
-        name: '', gender: '남', phone: '', birthDate: '', grade: '',
+        name: '', gender: '남', phone: '',
+        birthYear: '', birthMonth: '', birthDay: '', grade: '',
         school: '', parentPhone: '', address: '', note: '',
       });
       const [saving, setSaving] = useState(false);
 
       const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
+      // 생년월일 선택지 — 연도는 별도 드롭다운으로 (새가족#1). 청소년 범위 + 버퍼.
+      const thisYear = new Date().getFullYear();
+      const birthYears = [];
+      for (let y = thisYear - 8; y >= thisYear - 25; y--) birthYears.push(y);
+      const pad2 = (n) => String(n).padStart(2, '0');
+
       const submit = () => {
         if (!form.name.trim()) { toast.show('이름을 입력하세요'); return; }
+        // 연·월·일이 모두 선택된 경우에만 birthDate(YYYY-MM-DD) 구성.
+        const birthDate = (form.birthYear && form.birthMonth && form.birthDay)
+          ? form.birthYear + '-' + pad2(form.birthMonth) + '-' + pad2(form.birthDay)
+          : '';
         setSaving(true);
         callApi('addNewcomer', {
           idToken,
           name: form.name.trim(),
           gender: form.gender,
           phone: form.phone,
-          birthDate: form.birthDate,
+          birthDate: birthDate,
           grade: form.grade,
           school: form.school,
+          parentPhone: form.parentPhone,
           address: form.address,
           note: form.note,
         })
@@ -2346,7 +2470,23 @@
               </div>
               <div className="form-row">
                 <label className="form-label">생년월일</label>
-                <input type="date" className="form-input" value={form.birthDate} onChange={(e) => set('birthDate', e.target.value)} />
+                <div style={{display:'flex',gap:8}}>
+                  <select className="form-select" style={{flex:1.4}} value={form.birthYear}
+                    onChange={(e) => set('birthYear', e.target.value)} aria-label="출생 연도">
+                    <option value="">연도</option>
+                    {birthYears.map((y) => <option key={y} value={y}>{y}년</option>)}
+                  </select>
+                  <select className="form-select" style={{flex:1}} value={form.birthMonth}
+                    onChange={(e) => set('birthMonth', e.target.value)} aria-label="출생 월">
+                    <option value="">월</option>
+                    {Array.from({length:12},(_,i)=>i+1).map((m) => <option key={m} value={m}>{m}월</option>)}
+                  </select>
+                  <select className="form-select" style={{flex:1}} value={form.birthDay}
+                    onChange={(e) => set('birthDay', e.target.value)} aria-label="출생 일">
+                    <option value="">일</option>
+                    {Array.from({length:31},(_,i)=>i+1).map((d) => <option key={d} value={d}>{d}일</option>)}
+                  </select>
+                </div>
               </div>
               <div className="form-row">
                 <label className="form-label">학교</label>
@@ -2425,7 +2565,7 @@
               ) : teachers.length > 0 ? (
                 <select className="form-select" value={targetTeacher} onChange={(e) => setTargetTeacher(e.target.value)}>
                   <option value="">반 선택</option>
-                  {teachers.map((t) => <option key={t} value={t}>{t} 반</option>)}
+                  {teachers.map((t) => <option key={t} value={t}>{classLabel(t)}</option>)}
                 </select>
               ) : (
                 <input
@@ -2637,7 +2777,7 @@
                     {g['학년'] ? <span style={{fontWeight:400,color:'var(--label-alt)',marginLeft:6,fontSize:12}}>{g['학년']}</span> : null}
                   </span>
                   <span style={{color:'var(--label-alt)',fontSize:13}}>{g.graduatedOn}</span>
-                  <span className="sum-item" style={{fontSize:12}}>{g.graduatedTo} 반</span>
+                  <span className="sum-item" style={{fontSize:12}}>{classLabel(g.graduatedTo)}</span>
                 </div>
               );
             })}
@@ -2661,7 +2801,7 @@
             <label style={{fontSize:13,fontWeight:600,color:'var(--label-alt)',display:'block',marginBottom:6}}>반 선택</label>
             <select className="form-select" value={classFilter} onChange={(e) => setClassFilter(e.target.value)}>
               <option value="">전체 반</option>
-              {classNames.map((c) => <option key={c} value={c}>{c} 반</option>)}
+              {classNames.map((c) => <option key={c} value={c}>{classLabel(c)}</option>)}
             </select>
           </div>
           <div className="admin-section">
@@ -2670,7 +2810,7 @@
               const students = byClass[cls] || [];
               return (
                 <div key={cls} style={{marginBottom:12}}>
-                  <div className="class-group-head">{cls} 반</div>
+                  <div className="class-group-head">{classLabel(cls)}</div>
                   {students.map((s) => (
                     <div key={s.id} style={{fontSize:14,padding:'4px 0',borderBottom:'1px solid var(--fill-normal)',display:'flex',gap:8}}>
                       <span style={{flex:1,fontWeight:500}}>{s['이름']}</span>
@@ -2688,7 +2828,7 @@
               if (clsPrayers.length === 0) return null;
               return (
                 <div key={cls} style={{marginBottom:12}}>
-                  <div className="class-group-head">{cls} 반</div>
+                  <div className="class-group-head">{classLabel(cls)}</div>
                   {clsPrayers.map((p) => (
                     <div key={p.id} style={{padding:'6px 0',borderBottom:'1px solid var(--fill-normal)',fontSize:14}}>
                       <span style={{fontWeight:500}}>{p.studentName || p.studentId}</span>
