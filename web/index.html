@@ -706,6 +706,47 @@
       background:var(--fill-normal);color:var(--label-alt)}
     .grad-week.done{background:color-mix(in srgb, var(--att-p2) 18%, var(--bg));color:var(--att-p2-fg)}
 
+    /* ── v1.4 admin charts ── */
+    /* 선형 그래프 (주별/월별 합계) */
+    .line-chart{width:100%;height:auto;display:block}
+    .lc-val{font-size:9px;fill:var(--label-normal);font-weight:700}
+    .lc-lab{font-size:9px;fill:var(--label-alt)}
+    /* 반별 통계 타일 (#6: 한 줄에 3개) */
+    .tile-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:4px 0 4px}
+    .stat-tile{border:1px solid var(--line-solid);border-radius:14px;padding:10px 8px;text-align:center;
+      background:var(--bg);min-width:0}
+    .stat-tile .tname{font-size:12px;font-weight:700;color:var(--label-normal);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .stat-tile .tpct{font-size:22px;font-weight:800;color:var(--primary);line-height:1.1;margin:2px 0}
+    .stat-tile .tmeta{font-size:10px;color:var(--label-alt)}
+    .stat-tile .ttrack{height:4px;background:var(--fill-normal);border-radius:2px;margin-top:6px;overflow:hidden}
+    .stat-tile .tfill{height:100%;background:var(--primary);border-radius:2px}
+    /* 예배별 합계 가로 막대 (#2) */
+    .svc-bars{display:flex;flex-direction:column;gap:8px;padding:4px 0}
+    .svc-row{display:flex;align-items:center;gap:8px}
+    .svc-name{width:40px;font-size:13px;font-weight:700;color:var(--label-normal);flex-shrink:0}
+    .svc-track{flex:1;height:18px;background:var(--fill-normal);border-radius:9px;overflow:hidden}
+    .svc-fill{height:100%;border-radius:9px;min-width:2px;transition:width 240ms ease}
+    .svc-num{width:44px;text-align:right;font-size:13px;font-weight:700;color:var(--label-normal);flex-shrink:0}
+    /* 주별 학년별 누적 막대 (#4) */
+    .gradestack{display:flex;align-items:flex-end;gap:6px;padding:8px 2px 0;height:150px}
+    .gs-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0;height:100%;justify-content:flex-end}
+    .gs-bar{width:100%;max-width:30px;display:flex;flex-direction:column-reverse;border-radius:6px 6px 0 0;overflow:hidden}
+    .gs-seg{width:100%}
+    .gs-date{font-size:10px;color:var(--label-alt);white-space:nowrap}
+    .gs-legend{display:flex;flex-wrap:wrap;gap:10px;padding:8px 0 0}
+    .gs-leg{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--label-alt)}
+    .gs-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+    /* 결석 사유 목록 (#3) */
+    .abs-item{display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--fill-normal);font-size:14px}
+    .abs-name{font-weight:600;color:var(--label-normal);flex-shrink:0}
+    .abs-reason{color:var(--label-alt);flex:1}
+    /* 교사 출석현황 표 */
+    .tch-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--fill-normal);font-size:14px}
+    .tch-name{flex:1;font-weight:600;color:var(--label-normal);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .tch-cell{width:64px;text-align:right;color:var(--label-alt);font-size:13px;flex-shrink:0}
+    .tch-pct{width:48px;text-align:right;font-weight:700;color:var(--primary);flex-shrink:0}
+
     /* ── v1.2 theme: 밝고 활기찬 청소년부 (라이트 전용 오버라이드) ──
        다크 모드는 <html data-theme="dark">이므로 :root:not([data-theme="dark"])로
        라이트에서만 적용. 기존 토큰 정의는 건드리지 않고 캐스케이드로 덮는다. */
@@ -2588,7 +2629,35 @@
     }
 
     // ──────────────── AdminView ────────────────
-    // 관리자 통계: 전체 요약 + 주별 추이 + 반별 + 학년별 (올해 고정, 클라이언트 집계)
+    // 간단한 SVG 선형 그래프 — points: [{label, value}]
+    function LineChart({ points, color }) {
+      if (!points || points.length === 0) return <div className="weekly-empty">데이터가 없습니다</div>;
+      const W = 320, H = 120, padL = 8, padR = 8, padT = 16, padB = 20;
+      const maxV = Math.max.apply(null, points.map(function(p){ return p.value; }).concat([1]));
+      const n = points.length;
+      const xOf = function(i){ return n === 1 ? W / 2 : padL + (i * (W - padL - padR)) / (n - 1); };
+      const yOf = function(v){ return padT + (H - padT - padB) * (1 - v / maxV); };
+      const d = points.map(function(p, i){ return (i === 0 ? 'M' : 'L') + xOf(i).toFixed(1) + ' ' + yOf(p.value).toFixed(1); }).join(' ');
+      const labelStep = Math.max(1, Math.ceil(n / 6));
+      const col = color || 'var(--primary)';
+      return (
+        <svg className="line-chart" viewBox={'0 0 ' + W + ' ' + H} role="img" aria-label="추이 그래프">
+          <path d={d} fill="none" stroke={col} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+          {points.map(function(p, i){
+            return (
+              <g key={i}>
+                <circle cx={xOf(i)} cy={yOf(p.value)} r="2.5" fill={col} />
+                <text x={xOf(i)} y={yOf(p.value) - 5} textAnchor="middle" className="lc-val">{p.value}</text>
+                {i % labelStep === 0 && <text x={xOf(i)} y={H - 6} textAnchor="middle" className="lc-lab">{p.label}</text>}
+              </g>
+            );
+          })}
+        </svg>
+      );
+    }
+
+    // 관리자 통계: 전체 요약 + 주차별/월별 합계(선형) + 예배별 + 주별 학년별 + 반별 타일
+    //              + 학년별 + 결석사유 + 교사 출석현황 (올해 고정, 클라이언트 집계)
     function AdminStats({ byClass, attRows }) {
       const classNames = Object.keys(byClass);
       const allStudents = classNames.reduce(function(acc, c){ return acc.concat(byClass[c] || []); }, []);
@@ -2607,36 +2676,69 @@
       const latestPresent = presentRows.filter(function(r){ return r.date === latestDate; }).length;
       const latestPct = Math.min(100, Math.round((latestPresent / allStudents.length) * 100));
 
-      // 주별 추이 (최근 12주)
+      // 주차별 출석 합계 (최근 12주) — #1 / 주별 선형 그래프
       const trendDates = dates.slice(-12);
-      const trendMax = Math.max.apply(null, trendDates.map(function(d){
-        return presentRows.filter(function(r){ return r.date === d; }).length;
-      }).concat([1]));
+      const weeklyPoints = trendDates.map(function(d){
+        return { label: Number(d.slice(5,7)) + '/' + Number(d.slice(8,10)),
+                 value: presentRows.filter(function(r){ return r.date === d; }).length };
+      });
 
-      // 반별: 기록 당시의 반(row.teacher) 기준. 분모는 현재 인원 × 예배 횟수 (스펙 §6, 100% 캡).
+      // 월별 출석 합계 — 월별 선형 그래프
+      const monthMap = {};
+      presentRows.forEach(function(r){ const m = r.date.slice(0,7); monthMap[m] = (monthMap[m] || 0) + 1; });
+      const monthlyPoints = Object.keys(monthMap).sort().map(function(m){
+        return { label: Number(m.slice(5,7)) + '월', value: monthMap[m] };
+      });
+
+      // 예배별 출석 합계 (2부/3부/4부/기타) — #2
+      const SERVICES = [
+        { code:'P2', label:'2부', color:'var(--att-p2)' },
+        { code:'P3', label:'3부', color:'var(--att-p3)' },
+        { code:'P4', label:'4부', color:'var(--att-p4)' },
+        { code:'ETC', label:'기타', color:'var(--att-etc)' },
+      ];
+      const svcCounts = {};
+      attRows.forEach(function(r){ svcCounts[r.status] = (svcCounts[r.status] || 0) + 1; });
+      const svcMax = Math.max.apply(null, SERVICES.map(function(s){ return svcCounts[s.code] || 0; }).concat([1]));
+
+      // 학년 맵
+      const GRADE_ORDER = ['중1','중2','중3','고1','고2','고3'];
+      const GRADE_COLORS = { '중1':'#5B8DEF','중2':'#22C3A6','중3':'#F4A259','고1':'#9B6DFF','고2':'#EF6F6C','고3':'#E6B800','기타':'#9AA0A6' };
+      const gradeOf = {};
+      allStudents.forEach(function(s){ gradeOf[String(s.id)] = String(s['학년'] || '').trim() || '기타'; });
+      const gradeNames = Array.from(new Set(allStudents.map(function(s){ return gradeOf[String(s.id)]; })));
+      gradeNames.sort(function(a,b){
+        const ia = GRADE_ORDER.indexOf(a), ib = GRADE_ORDER.indexOf(b);
+        return (ia < 0 ? GRADE_ORDER.length : ia) - (ib < 0 ? GRADE_ORDER.length : ib);
+      });
+
+      // 주별 학년별 누적 출석 (최근 8주) — #4
+      const stackDates = dates.slice(-8);
+      const stackData = stackDates.map(function(d){
+        const byGrade = {}; gradeNames.forEach(function(g){ byGrade[g] = 0; });
+        presentRows.filter(function(r){ return r.date === d; }).forEach(function(r){
+          const g = gradeOf[String(r.studentId)]; if (g) byGrade[g] = (byGrade[g] || 0) + 1;
+        });
+        const total = gradeNames.reduce(function(a,g){ return a + byGrade[g]; }, 0);
+        return { date: d, byGrade: byGrade, total: total };
+      });
+      const stackMax = Math.max.apply(null, stackData.map(function(x){ return x.total; }).concat([1]));
+
+      // 반별: 기록 당시의 반(row.teacher) 기준. 분모는 현재 인원 × 예배 횟수 (100% 캡). #6 타일
       const classGroups = classNames
         .map(function(cls){
           const students = byClass[cls] || [];
           if (students.length === 0) return null;
           const present = presentRows.filter(function(r){ return r.teacher === cls; }).length;
           const total = students.length * totalDates;
-          return { name: cls, count: students.length, present: present, total: total,
+          const latest = presentRows.filter(function(r){ return r.teacher === cls && r.date === latestDate; }).length;
+          return { name: cls, count: students.length, present: present, total: total, latest: latest,
                    pct: total > 0 ? Math.min(100, Math.round((present / total) * 100)) : 0 };
         })
         .filter(Boolean)
         .sort(function(a,b){ return a.name.localeCompare(b.name, 'ko'); });
 
-      // 학년별: 현재 명단의 학년 기준 (출석 기록엔 학년 없음). 빈 학년 → '기타'.
-      const GRADE_ORDER = ['중1','중2','중3','고1','고2','고3'];
-      const gradeOf = {};
-      allStudents.forEach(function(s){
-        gradeOf[String(s.id)] = String(s['학년'] || '').trim() || '기타';
-      });
-      const gradeNames = Array.from(new Set(Object.keys(gradeOf).map(function(id){ return gradeOf[id]; })));
-      gradeNames.sort(function(a,b){
-        const ia = GRADE_ORDER.indexOf(a), ib = GRADE_ORDER.indexOf(b);
-        return (ia < 0 ? GRADE_ORDER.length : ia) - (ib < 0 ? GRADE_ORDER.length : ib);
-      });
+      // 학년별 통계
       const gradeGroups = gradeNames.map(function(g){
         const members = allStudents.filter(function(s){ return gradeOf[String(s.id)] === g; });
         const memberIds = {};
@@ -2646,6 +2748,12 @@
         return { name: g, count: members.length, present: present, total: total,
                  pct: total > 0 ? Math.min(100, Math.round((present / total) * 100)) : 0 };
       });
+
+      // 결석 사유 (최근 주일 기준) — #3. 반별 그룹. getAllAttendance는 studentName/etcText 포함.
+      const absRows = attRows.filter(function(r){ return r.status === 'ABSENT' && r.date === latestDate; });
+      const absByClass = {};
+      absRows.forEach(function(r){ (absByClass[r.teacher] = absByClass[r.teacher] || []).push(r); });
+      const absClasses = Object.keys(absByClass).sort(function(a,b){ return a.localeCompare(b, 'ko'); });
 
       return (
         <>
@@ -2661,22 +2769,116 @@
           </div>
 
           <div className="admin-section">
-            <h4>주별 출석 추이 (최근 {trendDates.length}주)</h4>
-            <div className="trend-chart">
-              {trendDates.map(function(d){
-                const n = presentRows.filter(function(r){ return r.date === d; }).length;
+            <h4>주차별 출석 합계 (최근 {weeklyPoints.length}주)</h4>
+            <LineChart points={weeklyPoints} />
+          </div>
+
+          <div className="admin-section">
+            <h4>월별 출석 합계</h4>
+            <LineChart points={monthlyPoints} color="var(--att-p4)" />
+          </div>
+
+          <div className="admin-section">
+            <h4>예배별 출석 합계 (올해 누적)</h4>
+            <div className="svc-bars">
+              {SERVICES.map(function(s){
+                const n = svcCounts[s.code] || 0;
                 return (
-                  <div key={d} className="trend-col" title={d + ' · ' + n + '명'}>
-                    <span className="trend-num">{n}</span>
-                    <div className="trend-fill" style={{height: Math.max(4, Math.round((n / trendMax) * 60)) + 'px'}}></div>
-                    <span className="trend-date">{Number(d.slice(5,7)) + '/' + Number(d.slice(8,10))}</span>
+                  <div key={s.code} className="svc-row">
+                    <span className="svc-name">{s.label}</span>
+                    <span className="svc-track">
+                      <span className="svc-fill" style={{width: Math.round((n / svcMax) * 100) + '%', background: s.color}}></span>
+                    </span>
+                    <span className="svc-num">{n}명</span>
                   </div>
                 );
               })}
             </div>
           </div>
 
-          <GroupStatSection title="반별 통계" groups={classGroups} />
+          <div className="admin-section">
+            <h4>주별 학년별 출석 (최근 {stackDates.length}주)</h4>
+            <div className="gradestack">
+              {stackData.map(function(col){
+                return (
+                  <div key={col.date} className="gs-col" title={col.date + ' · ' + col.total + '명'}>
+                    <div className="gs-bar" style={{height: Math.round((col.total / stackMax) * 110) + 'px'}}>
+                      {gradeNames.map(function(g){
+                        const c = col.byGrade[g] || 0;
+                        if (c === 0) return null;
+                        return <div key={g} className="gs-seg"
+                          style={{flex: c, background: GRADE_COLORS[g] || '#9AA0A6'}}
+                          title={g + ' ' + c + '명'} />;
+                      })}
+                    </div>
+                    <span className="gs-date">{Number(col.date.slice(5,7)) + '/' + Number(col.date.slice(8,10))}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="gs-legend">
+              {gradeNames.map(function(g){
+                return (
+                  <span key={g} className="gs-leg">
+                    <span className="gs-dot" style={{background: GRADE_COLORS[g] || '#9AA0A6'}} />{g}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="admin-section">
+            <h4>반별 통계</h4>
+            <div className="tile-grid">
+              {classGroups.map(function(g){
+                return (
+                  <div key={g.name} className="stat-tile" title={classLabel(g.name) + ' · ' + g.present + '/' + g.total + '회'}>
+                    <div className="tname">{g.name}</div>
+                    <div className="tpct">{g.pct}%</div>
+                    <div className="tmeta">{g.count}명 · 최근 {g.latest}</div>
+                    <div className="ttrack"><div className="tfill" style={{width: Math.max(2, g.pct) + '%'}}></div></div>
+                  </div>
+                );
+              })}
+            </div>
+            {classGroups.length === 0 && <div style={{fontSize:14,color:'var(--label-alt)'}}>데이터가 없습니다.</div>}
+          </div>
+
+          <div className="admin-section">
+            <h4>결석 사유 <span style={{fontWeight:400,fontSize:12,color:'var(--label-alt)'}}>(최근 주일 {latestDate})</span></h4>
+            {absClasses.length === 0 && <div style={{fontSize:14,color:'var(--label-alt)'}}>최근 주일 결석자가 없습니다 🎉</div>}
+            {absClasses.map(function(cls){
+              return (
+                <div key={cls} style={{marginBottom:10}}>
+                  <div className="class-group-head">{classLabel(cls)}</div>
+                  {absByClass[cls].map(function(r, i){
+                    return (
+                      <div key={r.studentId + '_' + i} className="abs-item">
+                        <span className="abs-name">{r.studentName || ('학생 ' + r.studentId)}</span>
+                        <span className="abs-reason">{r.etcText ? r.etcText : '사유 미입력'}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="admin-section">
+            <h4>교사 출석현황</h4>
+            {classGroups.map(function(g){
+              return (
+                <div key={g.name} className="tch-row">
+                  <span className="tch-name">{classLabel(g.name)}</span>
+                  <span className="tch-cell">{g.count}명</span>
+                  <span className="tch-cell">최근 {g.latest}</span>
+                  <span className="tch-pct">{g.pct}%</span>
+                </div>
+              );
+            })}
+            {classGroups.length === 0 && <div style={{fontSize:14,color:'var(--label-alt)'}}>데이터가 없습니다.</div>}
+          </div>
+
           <GroupStatSection title="학년별 통계" groups={gradeGroups} />
         </>
       );
