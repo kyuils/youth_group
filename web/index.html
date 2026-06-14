@@ -254,72 +254,48 @@
     }
     .login h1{font-size:var(--type-heading1-size);line-height:var(--type-heading1-line);letter-spacing:var(--type-heading1-tracking);font-weight:var(--weight-bold-display);margin:0}
     .login p{color:var(--semantic-label-alternative);margin:0}
-    /* ── 표지 cover (시안 적용: 다크 히어로 + 앱 미리보기 카드 + 블루 로그인) ──
-       LoginScreen 전용. UnauthorizedScreen/에러 화면은 위의 generic .login 유지. */
-    .cover{flex:1;display:flex;flex-direction:column;min-height:100dvh;background:var(--semantic-background-normal-alternative)}
-    .cover .login-notice{margin:calc(env(safe-area-inset-top) + var(--space-12)) var(--space-16) 0}
-    /* notice가 있으면 히어로의 상단 safe-area 패딩은 notice가 이미 처리 → 중복 제거 */
-    .cover:has(> .login-notice) .cover-hero{padding-top:var(--space-32)}
-
-    /* 다크 마스트헤드 — 테마 무관 고정 브랜드 밴드 */
-    .cover-hero{
-      background:var(--atomic-coolNeutral-10); /* #171719 */
-      color:#fff;text-align:center;
-      padding:calc(env(safe-area-inset-top) + var(--space-40)) var(--space-24) var(--space-80);
+    /* ── 표지 cover (Claude 표지 시안: 라이트 크림 배경 + clay 아이콘 기능 카드) ──
+       LoginScreen 전용. 다크모드와 무관하게 고정 라이트. 에러/권한 화면은 generic .login 유지. */
+    .cover{
+      flex:1;display:flex;flex-direction:column;min-height:100dvh;
+      background:#FAF9F5;color:#181715;
+      padding:calc(env(safe-area-inset-top) + 36px) 24px calc(env(safe-area-inset-bottom) + 24px);
     }
-    .cover-brand{display:inline-flex;align-items:center;gap:var(--space-6);margin-bottom:var(--space-20)}
-    .cover-brand svg{display:block}
-    .cover-brand-text{font-size:var(--type-label1-size);font-weight:var(--weight-bold-display);color:#fff;letter-spacing:-0.01em}
+    /* 상단 안내 배너 — 라이트 표지에서 항상 가독성 확보(테마 변수 대신 고정색) */
+    .cover .login-notice{margin:0 0 14px;background:#FFF3E0;color:#B45309}
+    .cover .inapp-banner{margin:0 0 14px;background:#FFF3E0;border-color:#F3D6A8}
+    .cover .inapp-title{color:#B45309}
+    .cover .inapp-desc{color:#3D3D3D}
+
+    .cover-main{flex:1;display:flex;flex-direction:column;justify-content:center;min-height:0}
+    .cover-brand{
+      display:inline-flex;align-items:center;gap:6px;align-self:flex-start;
+      padding:6px 12px;border-radius:9999px;background:#EFE9DE;color:#CC785C;margin-bottom:18px;
+    }
+    .cover-brand-text{font-size:14px;font-weight:600;letter-spacing:-0.01em}
     .cover-title{
-      margin:0;color:#fff;word-break:keep-all;
-      font-size:clamp(28px, 8.4vw, 34px);line-height:1.18;
-      font-weight:800;letter-spacing:-0.03em;
+      margin:0;color:#181715;word-break:keep-all;
+      font-size:clamp(28px, 8.2vw, 32px);line-height:1.2;font-weight:700;letter-spacing:-0.03em;
     }
-    .cover-sub{
-      margin:var(--space-14) 0 0;color:rgba(255,255,255,0.62);word-break:keep-all;
-      font-size:var(--type-body1-size);line-height:1.5;
-    }
+    .cover-sub{margin:12px 0 0;color:#6B6B6B;word-break:keep-all;font-size:16px;line-height:1.5}
 
-    /* 앱 미리보기 폰 카드 — 히어로/본문 경계에 겹쳐 떠 있음 */
-    .cover-preview-wrap{margin:-72px var(--space-24) 0;position:relative;z-index:1}
-    .cover-preview{
-      background:var(--semantic-background-elevated-normal);
-      border:1px solid var(--semantic-line-solid-alternative);
-      border-radius:var(--radius-2xl);
-      box-shadow:0 22px 50px -14px rgba(0,0,0,0.40), 0 6px 16px -8px rgba(0,0,0,0.22);
-      padding:var(--space-16) var(--space-16) var(--space-8);overflow:hidden;
+    .cover-features{display:flex;flex-direction:column;gap:10px;margin-top:28px}
+    .feat-card{
+      display:flex;align-items:center;gap:14px;
+      background:#EFE9DE;border-radius:14px;padding:14px 16px;
     }
-    .cover-pv-status{
-      display:flex;align-items:center;justify-content:space-between;
-      font-size:var(--type-label2-size);font-weight:var(--weight-bold-display);
-      color:var(--semantic-label-normal);padding:2px 2px var(--space-10);
-    }
-    .cover-pv-status .notch{width:34px;height:13px;border-radius:7px;border:2px solid var(--semantic-label-assistive)}
-    .cover-pv-sub{font-size:var(--type-caption1-size);font-weight:var(--weight-bold-text);color:var(--semantic-label-alternative)}
-    .cover-pv-class{font-size:var(--type-heading2-size);font-weight:800;letter-spacing:-0.02em;color:var(--semantic-label-normal);margin:1px 0 var(--space-10)}
-    .cover-pv-count{
-      display:flex;align-items:baseline;gap:var(--space-6);
-      padding-bottom:var(--space-12);border-bottom:1px solid var(--semantic-line-solid-alternative);
-    }
-    .cover-pv-count .big{font-size:30px;line-height:1;font-weight:800;letter-spacing:-0.02em;color:var(--semantic-label-normal)}
-    .cover-pv-count .rest{font-size:var(--type-body2-size);color:var(--semantic-label-alternative);font-weight:var(--weight-medium)}
-    .cover-pv-row{display:flex;align-items:center;gap:var(--space-12);padding:var(--space-10) 0}
-    .cover-pv-row .nm{font-size:var(--type-headline2-size);font-weight:var(--weight-bold-text);color:var(--semantic-label-normal);line-height:1.2}
-    .cover-pv-row .gr{font-size:var(--type-caption1-size);color:var(--semantic-label-alternative);margin-top:2px}
-    .cover-pv-row .chk{
-      margin-left:auto;width:26px;height:26px;border-radius:var(--radius-pill);flex-shrink:0;
+    .feat-icon{
+      flex-shrink:0;width:40px;height:40px;border-radius:11px;
       display:inline-flex;align-items:center;justify-content:center;
+      background:#FAF9F5;color:#CC785C;
     }
-    .cover-pv-row .chk.on{background:var(--atomic-blue-50)}
-    .cover-pv-row .chk.off{border:2px solid var(--semantic-line-solid-normal)}
+    .feat-title{font-size:15px;font-weight:600;color:#181715;line-height:1.25}
+    .feat-sub{font-size:13px;color:#6B6B6B;margin-top:2px}
 
-    /* 본문(밝은 영역) — 로그인 버튼 + 푸터, 하단 정렬 */
-    .cover-body{
-      flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:var(--space-14);
-      padding:var(--space-32) var(--space-20) calc(env(safe-area-inset-bottom) + var(--space-32));
-    }
+    /* 본문 — 로그인 버튼 + 푸터, 하단 */
+    .cover-body{display:flex;flex-direction:column;align-items:center;gap:14px;padding-top:24px}
     .cover-gis{display:flex;justify-content:center;width:100%;min-height:44px}
-    .cover-foot{margin:0;font-size:var(--type-label1-size);color:var(--semantic-label-alternative);text-align:center;word-break:keep-all}
+    .cover-foot{margin:0;font-size:13px;color:#989BA2;text-align:center;word-break:keep-all}
 
     /* ====== STUDENT CARD ====== */
     .student-card{
@@ -629,8 +605,6 @@
     .inapp-title{font-size:var(--type-label1-size);font-weight:var(--weight-bold-text);color:var(--semantic-accent-fg-orange);margin-bottom:var(--space-4)}
     .inapp-desc{font-size:var(--type-caption1-size);color:var(--semantic-label-normal);line-height:1.5;margin-bottom:var(--space-10)}
     .inapp-actions{display:flex;gap:var(--space-8);flex-wrap:wrap}
-    /* 배너가 있으면 히어로 상단 safe-area 패딩 중복 제거 */
-    .cover:has(> .inapp-banner) .cover-hero{padding-top:var(--space-32)}
 
     /* 앱바 아이콘 버튼 (다크모드 토글) */
     .icon-btn{
@@ -926,7 +900,7 @@
         // 큰 화면에선 거의 풀폭(GIS 허용 범위 200~400px로 클램프).
         const avail = containerRef.current.offsetWidth || 320;
         const width = Math.max(200, Math.min(400, Math.round(avail)));
-        google.accounts.id.renderButton(containerRef.current, { theme: 'filled_blue', size: 'large', shape: 'pill', text: 'signin_with', logo_alignment: 'center', width });
+        google.accounts.id.renderButton(containerRef.current, { theme: 'outline', size: 'large', shape: 'pill', text: 'signin_with', logo_alignment: 'center', width });
       }, [ready]);
 
       useEffect(() => { if (ready && !idToken) renderButton(); }, [ready, idToken, renderButton]);
@@ -1101,14 +1075,6 @@
     }
 
     // ──────────────── Login / Error screens ────────────────
-    // 표지 미리보기 카드에 보여줄 예시 명단(시안 그대로) — UI 데모용, 실데이터 아님.
-    const COVER_PREVIEW_ROWS = [
-      { name: '김믿음', grade: '중2', present: true },
-      { name: '박소망', grade: '중2', present: true },
-      { name: '이사랑', grade: '중3', present: false },
-      { name: '정은혜', grade: '중3', present: true },
-    ];
-
     // 인앱 브라우저 안내 배너 (#0) — 카카오톡 등에서 구글 로그인이 차단될 때
     // 외부 브라우저로 열도록 유도한다.
     function InAppNotice({ kind }) {
@@ -1148,6 +1114,19 @@
       );
     }
 
+    // 기능 카드 아이콘 (Claude 표지 시안에서 추출한 lucide 계열 path) — clay 색.
+    const COVER_FEATURES = [
+      { title: '출석 체크', sub: '한 번의 탭으로 빠르게', paths: (
+        <><circle cx="12" cy="12" r="9" /><path d="M8.3 12.2l2.6 2.6 4.8-5.2" /></>
+      )},
+      { title: '학생 관리', sub: '반별 명단과 정보 정리', paths: (
+        <><circle cx="9" cy="8.5" r="3.1" /><path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5" /><path d="M16 5.6a3 3 0 0 1 0 5.8" /><path d="M17 14.2c2.3.5 3.9 2.3 3.9 4.8" /></>
+      )},
+      { title: '출석 현황', sub: '주별·월별 통계 확인', paths: (
+        <><path d="M4 20V5" /><path d="M4 20h16" /><rect x="7" y="12" width="3.2" height="5" rx="1" /><rect x="13.5" y="8" width="3.2" height="9" rx="1" /></>
+      )},
+    ];
+
     function LoginScreen({ containerRef, notice }) {
       const inApp = detectInApp();
       return (
@@ -1155,10 +1134,10 @@
           {notice && <div className="login-notice" role="alert">{notice}</div>}
           {inApp && <InAppNotice kind={inApp} />}
 
-          <div className="cover-hero">
+          <div className="cover-main">
             <span className="cover-brand">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff"
-                strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M12 2.2v3.2M10.4 3.6h3.2" />
                 <path d="M4.6 20.5v-9l7.4-5 7.4 5v9" />
                 <path d="M3.4 20.5h17.2" />
@@ -1168,34 +1147,20 @@
             </span>
             <h1 className="cover-title">혜림교회<br />청소년부 출석부</h1>
             <p className="cover-sub">등록된 교사 계정으로<br />로그인하세요</p>
-          </div>
 
-          <div className="cover-preview-wrap" aria-hidden="true">
-            <div className="cover-preview">
-              <div className="cover-pv-status">
-                <span>9:41</span>
-                <span className="notch" />
-              </div>
-              <div className="cover-pv-sub">청소년부 · 교사</div>
-              <div className="cover-pv-class">김믿음교사 반</div>
-              <div className="cover-pv-count">
-                <span className="big">23</span>
-                <span className="rest">/ 25명 출석</span>
-              </div>
-              {COVER_PREVIEW_ROWS.map((s) => (
-                <div className="cover-pv-row" key={s.name}>
-                  <div>
-                    <div className="nm">{s.name}</div>
-                    <div className="gr">{s.grade}</div>
-                  </div>
-                  <span className={'chk ' + (s.present ? 'on' : 'off')}>
-                    {s.present && (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                        <path d="M5 12.5l4.5 4.5L19 7" stroke="#fff" strokeWidth="3"
-                          strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    )}
+            <div className="cover-features">
+              {COVER_FEATURES.map((f) => (
+                <div className="feat-card" key={f.title}>
+                  <span className="feat-icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      {f.paths}
+                    </svg>
                   </span>
+                  <div className="feat-text">
+                    <div className="feat-title">{f.title}</div>
+                    <div className="feat-sub">{f.sub}</div>
+                  </div>
                 </div>
               ))}
             </div>
