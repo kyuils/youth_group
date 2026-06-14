@@ -2375,7 +2375,8 @@
       const [showForm, setShowForm] = useState(false);
       const [graduateTarget, setGraduateTarget] = useState(null); // student object (등반)
       const [changeGradTarget, setChangeGradTarget] = useState(null); // 등반 완료자 (등반반 변경)
-      const [override, setOverride] = useState({}); // 즉시 반영용 (studentId -> 오늘 상태)
+      const [override, setOverride] = useState({}); // 즉시 반영용 (studentId|date -> 상태, 'NONE'=취소)
+      const [date, setDate] = useState(recentSunday()); // 출석 수정 대상 주일
 
       const reload = useCallback(() => {
         setLoading(true);
@@ -2392,32 +2393,30 @@
 
       useEffect(reload, [reload]);
 
-      const todayDate = todayISO();
       const [pendingEtc, setPendingEtc] = useState(null); // { studentId, status }
 
+      // 선택한 주일(date)의 출석을 저장/수정/취소. status==='NONE'이면 기록 삭제.
       const doSaveAttendance = (studentId, status, etcText) => {
-        // 누르는 즉시 화면에 반영 (서버 응답 기다리지 않음) — "반응 없음" 방지
-        setOverride((o) => ({ ...o, [studentId]: status }));
-        callApi('setAttendance', { idToken, date: todayDate, studentId, status, etcText: etcText || '' })
+        const k = studentId + '|' + date;
+        setOverride((o) => ({ ...o, [k]: status })); // 즉시 반영
+        callApi('setAttendance', { idToken, date, studentId, status, etcText: etcText || '' })
           .then((r) => {
-            if (r.ok) { toast.show('출석 저장됨 (' + todayDate + ')'); reload(); }
+            if (r.ok) { toast.show(status === 'NONE' ? '출석 취소됨' : ('출석 저장됨 (' + date + ')')); reload(); }
             else {
-              setOverride((o) => { const n = { ...o }; delete n[studentId]; return n; });
+              setOverride((o) => { const n = { ...o }; delete n[k]; return n; });
               toast.show('저장 실패: ' + (r.code || ''));
             }
           })
           .catch(() => {
-            setOverride((o) => { const n = { ...o }; delete n[studentId]; return n; });
+            setOverride((o) => { const n = { ...o }; delete n[k]; return n; });
             toast.show('네트워크 오류');
           });
       };
 
-      // 출석 탭과 동일한 바텀시트 입력 (H3 — window.prompt 제거, UI 일관성)
-      const setAttendance = (studentId, status) => {
-        if (status === 'ETC' || status === 'ABSENT') {
-          setPendingEtc({ studentId, status });
-          return;
-        }
+      // 같은 상태를 다시 누르면 취소(수정), 아니면 설정. ETC/ABSENT는 사유 시트.
+      const tapStatus = (studentId, status, cur) => {
+        if (cur === status) { doSaveAttendance(studentId, 'NONE', ''); return; }
+        if (status === 'ETC' || status === 'ABSENT') { setPendingEtc({ studentId, status }); return; }
         doSaveAttendance(studentId, status, '');
       };
 
@@ -2463,6 +2462,9 @@
             </div>
           </div>
 
+          {/* 출석 수정 대상 주일 선택 — 지난 주 출석도 고칠 수 있다 */}
+          <WeekStepper sunday={date} onChange={setDate} />
+
           <div style={{padding:'12px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
             <div style={{fontSize:14,color:'var(--label-alt)'}}>{students.length}명의 새가족</div>
             <button className="btn primary sm" onClick={() => setShowForm(true)}>＋ 새가족 추가</button>
@@ -2472,15 +2474,19 @@
 
           {students.map((s) => {
             const prog = s.progress || {};
-            // 오늘 출석 상태 — 방금 누른 값(override)을 우선 반영해 즉시 표시
-            const todayAtt = (override[s.id] !== undefined) ? override[s.id] : (s.todayStatus || null);
-            // 출석 이력 (최근 → 과거). override가 오늘 기록을 추가했으면 합쳐서 표시
-            const hist = (s.attendance || []).slice();
-            if (override[s.id] !== undefined && !hist.some((a) => a.date === todayDate)) {
-              hist.unshift({ date: todayDate, status: override[s.id] });
+            // 선택한 주일(date)의 출석 상태 — 방금 누른 값(override) 우선, 'NONE'이면 없음.
+            const ovk = s.id + '|' + date;
+            let cur;
+            if (override[ovk] !== undefined) cur = (override[ovk] === 'NONE') ? null : override[ovk];
+            else { const rec = (s.attendance || []).find((a) => a.date === date); cur = rec ? rec.status : null; }
+            // 출석 이력 (최근 → 과거). 선택 주일의 override를 합쳐 즉시 반영.
+            const hist = (s.attendance || []).filter((a) => a.date !== date || override[ovk] === undefined);
+            if (override[ovk] !== undefined && override[ovk] !== 'NONE') {
+              hist.unshift({ date: date, status: override[ovk] });
             }
+            hist.sort((a, b) => (a.date < b.date ? 1 : (a.date > b.date ? -1 : 0)));
             return (
-              <div className="newcomer-card" key={s.id} data-status={todayAtt || undefined}>
+              <div className="newcomer-card" key={s.id} data-status={cur || undefined}>
                 <div className="newcomer-card-top">
                   <div style={{flex:1}}>
                     <div className="student-name">{s['이름']}</div>
@@ -2490,12 +2496,13 @@
                   <button className="btn danger sm" onClick={() => setGraduateTarget(s)}>등반</button>
                 </div>
                 <div className="newcomer-card-bottom">
-                  <div style={{fontSize:11,color:'var(--label-alt)',fontWeight:600,marginRight:4}}>오늘 출석</div>
+                  <div style={{fontSize:11,color:'var(--label-alt)',fontWeight:600,marginRight:4}}>출석</div>
                   {STATUS_OPTIONS.map((opt) => (
                     <button key={opt.code}
-                      className={'pill ' + (todayAtt === opt.code ? 'active ' + opt.code : '')}
+                      className={'pill ' + (cur === opt.code ? 'active ' + opt.code : '')}
                       style={{fontSize:11,padding:'4px 8px'}}
-                      onClick={() => setAttendance(s.id, opt.code)}>{opt.label}</button>
+                      title={cur === opt.code ? '다시 누르면 취소' : ''}
+                      onClick={() => tapStatus(s.id, opt.code, cur)}>{opt.label}</button>
                   ))}
                 </div>
                 {hist.length > 0 && (
@@ -2504,11 +2511,14 @@
                     {hist.slice(0, 10).map((a, i) => {
                       const o = STATUS_OPTIONS.find((x) => x.code === a.status);
                       const md = a.date.length >= 10 ? (Number(a.date.slice(5,7)) + '/' + Number(a.date.slice(8,10))) : a.date;
+                      const sel = a.date === date;
                       return (
-                        <span key={a.date + '_' + i} className={'sum-item ' + a.status} style={{fontSize:11}}
-                          title={a.date + (a.etcText ? ' · ' + a.etcText : '')}>
+                        <button key={a.date + '_' + i} className={'sum-item ' + a.status}
+                          style={{fontSize:11,border:sel?'1.5px solid var(--label-normal)':'none',cursor:'pointer'}}
+                          title={a.date + (a.etcText ? ' · ' + a.etcText : '') + ' — 눌러서 이 주일 수정'}
+                          onClick={() => setDate(a.date)}>
                           {md} {o ? o.label : a.status}
-                        </span>
+                        </button>
                       );
                     })}
                   </div>
