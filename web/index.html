@@ -257,7 +257,9 @@
     /* ── 표지 cover (시안 적용: 다크 히어로 + 앱 미리보기 카드 + 블루 로그인) ──
        LoginScreen 전용. UnauthorizedScreen/에러 화면은 위의 generic .login 유지. */
     .cover{flex:1;display:flex;flex-direction:column;min-height:100dvh;background:var(--semantic-background-normal-alternative)}
-    .cover .login-notice{margin:var(--space-12) var(--space-16) 0}
+    .cover .login-notice{margin:calc(env(safe-area-inset-top) + var(--space-12)) var(--space-16) 0}
+    /* notice가 있으면 히어로의 상단 safe-area 패딩은 notice가 이미 처리 → 중복 제거 */
+    .cover:has(> .login-notice) .cover-hero{padding-top:var(--space-32)}
 
     /* 다크 마스트헤드 — 테마 무관 고정 브랜드 밴드 */
     .cover-hero{
