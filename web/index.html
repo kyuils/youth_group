@@ -1460,6 +1460,12 @@
           setPendingEtc({ studentId, status, prevStatus: prev });
           return;
         }
+        // 이미 결석인데 결석을 다시 누르면 빈 사유로 덮어쓰지 않고 사유(선택) 편집을 연다
+        // (기존에 입력한 결석 사유가 지워지는 회귀 방지).
+        if (status === 'ABSENT' && att[date + '|' + studentId] === 'ABSENT') {
+          openAbsenceReason(studentId);
+          return;
+        }
         saveAttendance(studentId, status, '');
       };
 
