@@ -351,6 +351,9 @@
     .pill.active.P4    {background:color-mix(in srgb, var(--att-p4) 12%, transparent);    border-color:var(--att-p4);    color:var(--att-p4-fg);    box-shadow:0 0 0 1px color-mix(in srgb, var(--att-p4) 18%, transparent)}
     .pill.active.ETC   {background:color-mix(in srgb, var(--att-etc) 12%, transparent);   border-color:var(--att-etc);   color:var(--att-etc-fg);   box-shadow:0 0 0 1px color-mix(in srgb, var(--att-etc) 18%, transparent)}
     .pill.active.ABSENT{background:color-mix(in srgb, var(--att-absent) 12%, transparent);border-color:var(--att-absent);color:var(--att-absent-fg);box-shadow:0 0 0 1px color-mix(in srgb, var(--att-absent) 15%, transparent)}
+    /* v1.5(R5) — 결석 사유(선택) 입력 보조 칩. 점선·muted로 부가 액션임을 표시. */
+    .pill.compact.note-pill{color:var(--semantic-label-alternative);border-style:dashed;font-weight:var(--weight-bold-text)}
+    .pill.compact.note-pill:hover{color:var(--semantic-label-normal)}
 
     /* ====== BULK LABEL (used by StatsView sort bar) ====== */
     .bulk-label{font-size:var(--type-caption2-size);color:var(--semantic-label-alternative);font-weight:var(--weight-bold-text);margin-right:2px}
@@ -486,12 +489,19 @@
        UX Medium 5 커스텀 (M1~M5) — Montage 토큰화, 그라데이션 제거
        ============================================================ */
 
-    /* M2 — Roster filter/sort toolbar */
+    /* M2 — Roster filter/sort toolbar. v1.5(R4): 필터(1행)와 정렬(2행)을 분리해 시인성 향상. */
     .filter-bar{
       padding:var(--space-8) var(--space-16);
-      display:flex;gap:var(--space-6);flex-wrap:wrap;align-items:center;
+      display:flex;flex-direction:column;gap:var(--space-8);
       border-bottom:1px solid var(--semantic-line-solid-normal);
       background:var(--semantic-background-normal-normal);
+    }
+    .filter-row{display:flex;gap:var(--space-6);flex-wrap:wrap;align-items:center}
+    .sort-row{padding-top:var(--space-8);border-top:1px dashed var(--semantic-line-solid-normal)}
+    .sort-label{
+      font-size:var(--type-caption1-size);letter-spacing:var(--type-caption1-tracking);
+      font-weight:var(--weight-bold-text);color:var(--semantic-label-alternative);
+      margin-right:var(--space-4);
     }
     .filter-chip{
       padding:6px var(--space-12);border-radius:var(--radius-pill);
@@ -799,6 +809,8 @@
       graduate:           ['getNewcomers','getRoster','getAllRosters','getAttendance','getAllAttendance','getStudentDetail'],
       updateStudent:      ['getStudentDetail','getRoster','getAllRosters','getNewcomers'],
       setGraduationClass: ['getNewcomers','getRoster','getAllRosters','getAttendance','getAllAttendance','getStudentDetail'],
+      addStudent:         ['getRoster','getAllRosters','getAttendance','getAllAttendance'],
+      deleteNewcomer:     ['getNewcomers','getAllRosters'],
     };
     function invalidateApiCache(prefixes) {
       Array.from(apiCache.keys()).forEach((k) => {
@@ -1304,7 +1316,7 @@
       const TABS = useMemo(() => {
         // 새가족부 교사: 새가족부 + 기도제목만 (#8)
         if (isNewcomerStaff) return [['newcomers','새가족부'],['prayer','기도제목']];
-        const base = [['roster','출석'],['weekly','현황'],['prayer','기도제목']];
+        const base = [['roster','출석'],['manage','명단'],['weekly','현황'],['prayer','기도제목']];
         const extra = [];
         if (me.permissions.includes('write_newcomer')) extra.push(['newcomers','새가족부']);
         if (me.permissions.includes('read_all')) extra.push(['admin','관리자']);
@@ -1351,6 +1363,7 @@
           )}
 
           {validTab === 'roster'    && <RosterView    idToken={idToken} me={me} date={date} toast={toast} onOpenDetail={setDetailId} />}
+          {validTab === 'manage'    && <RosterManageView idToken={idToken} me={me} toast={toast} onOpenDetail={setDetailId} />}
           {validTab === 'weekly'    && <WeeklyView    idToken={idToken} toast={toast} me={me} date={date} />}
           {validTab === 'prayer'    && <PrayerView    idToken={idToken} me={me} toast={toast} />}
           {validTab === 'newcomers' && <NewcomersView idToken={idToken} toast={toast} onOpenDetail={setDetailId} />}
@@ -1440,13 +1453,20 @@
       };
 
       const setStatus = (studentId, status) => {
-        // ETC/ABSENT use a mobile-friendly bottom sheet instead of window.prompt.
-        if (status === 'ETC' || status === 'ABSENT') {
+        // 외부예배(ETC)만 사유 시트를 거친다. 결석(ABSENT)은 1탭 즉시 저장하고,
+        // 사유는 카드의 [✎ 사유] 버튼으로 필요한 교사만 선택 입력한다 (R5).
+        if (status === 'ETC') {
           const prev = att[date + '|' + studentId];
           setPendingEtc({ studentId, status, prevStatus: prev });
           return;
         }
         saveAttendance(studentId, status, '');
+      };
+
+      // 결석 사유(선택) 입력 시트 열기 — 이미 결석 처리된 학생에 한해. 기존 사유는 프리필.
+      const openAbsenceReason = (studentId) => {
+        const rec = attRows.find((r) => r.date === date && String(r.studentId) === String(studentId));
+        setPendingEtc({ studentId, status: 'ABSENT', initial: (rec && rec.etcText) || '' });
       };
 
       const handleEtcSave = (text) => {
@@ -1525,7 +1545,8 @@
       const bulkSetUnmarked = (status) => {
         const targets = (students || []).filter(function(s){ return !att[date + '|' + s.id]; });
         if (targets.length === 0) { toast.show('미체크 학생이 없습니다'); return; }
-        if (status === 'ETC' || status === 'ABSENT') {
+        // 외부예배(ETC)만 사유 시트를 거친다. 결석(ABSENT)은 사유 없이 즉시 일괄 적용 (R5).
+        if (status === 'ETC') {
           setPendingEtc({ bulk: true, status: status, count: targets.length, targets: targets });
           return;
         }
@@ -1698,19 +1719,23 @@
             </div>
           )}
           <div className="filter-bar" role="toolbar" aria-label="명단 필터·정렬">
-            <button className={'filter-chip' + (filterBy === 'all' ? ' active' : '')}
-              onClick={() => setFilterBy('all')}>전체<span className="count">{students.length}</span></button>
-            <button className={'filter-chip' + (filterBy === 'unmarked' ? ' active' : '')}
-              onClick={() => setFilterBy('unmarked')}>미체크<span className="count">{unmarkedCount}</span></button>
-            <button className={'filter-chip' + (filterBy === 'streak' ? ' active' : '')}
-              onClick={() => setFilterBy('streak')}>⚠ 3주결석<span className="count">{streakCount}</span></button>
-            <span className="filter-sep"></span>
-            <button className={'filter-chip' + (sortBy === 'name' ? ' active' : '')}
-              onClick={() => setSortBy('name')}>이름순</button>
-            <button className={'filter-chip' + (sortBy === 'grade' ? ' active' : '')}
-              onClick={() => setSortBy('grade')}>학년순</button>
-            <button className={'filter-chip' + (sortBy === 'lastAtt' ? ' active' : '')}
-              onClick={() => setSortBy('lastAtt')}>최근출석순</button>
+            <div className="filter-row" role="group" aria-label="필터">
+              <button className={'filter-chip' + (filterBy === 'all' ? ' active' : '')}
+                onClick={() => setFilterBy('all')}>전체<span className="count">{students.length}</span></button>
+              <button className={'filter-chip' + (filterBy === 'unmarked' ? ' active' : '')}
+                onClick={() => setFilterBy('unmarked')}>미체크<span className="count">{unmarkedCount}</span></button>
+              <button className={'filter-chip' + (filterBy === 'streak' ? ' active' : '')}
+                onClick={() => setFilterBy('streak')}>⚠ 3주결석<span className="count">{streakCount}</span></button>
+            </div>
+            <div className="filter-row sort-row" role="group" aria-label="정렬">
+              <span className="sort-label">정렬</span>
+              <button className={'filter-chip' + (sortBy === 'name' ? ' active' : '')}
+                onClick={() => setSortBy('name')}>이름순</button>
+              <button className={'filter-chip' + (sortBy === 'grade' ? ' active' : '')}
+                onClick={() => setSortBy('grade')}>학년순</button>
+              <button className={'filter-chip' + (sortBy === 'lastAtt' ? ' active' : '')}
+                onClick={() => setSortBy('lastAtt')}>최근출석순</button>
+            </div>
           </div>
           {view.length === 0 && (
             <div className="loading" style={{padding:24}}>
@@ -1762,6 +1787,12 @@
                         saveAttendance(s.id, e.status, e.etcText || '');
                       }}>⟳</button>
                   )}
+                  {cur === 'ABSENT' && (
+                    <button className="pill compact note-pill"
+                      title="결석 사유 입력(선택)" aria-label={s['이름'] + ' 결석 사유 입력'}
+                      disabled={bulkBusy}
+                      onClick={() => openAbsenceReason(s.id)}>✎ 사유</button>
+                  )}
                   {STATUS_OPTIONS.map((opt) => (
                     <button key={opt.code}
                       className={'pill compact ' + (cur === opt.code ? 'active ' + opt.code : '')}
@@ -1796,6 +1827,7 @@
           )}
           {pendingEtc && (
             <EtcInputSheet status={pendingEtc.status}
+              initial={pendingEtc.initial}
               subtitle={pendingEtc.bulk ? '미체크 ' + pendingEtc.count + '명에게 일괄 적용됩니다' : null}
               onSave={handleEtcSave} onCancel={handleEtcCancel} />
           )}
@@ -1803,25 +1835,18 @@
       );
     }
 
-    // Mobile-friendly bottom sheet for entering ETC (외부예배) or ABSENT 사유.
-    // Replaces window.prompt for better keyboard handling on phones.
-    function EtcInputSheet({ status, subtitle, onSave, onCancel }) {
-      const [value, setValue] = useState('');
-      const [error, setError] = useState(false);
+    // Mobile-friendly bottom sheet for entering ETC(외부예배) place or ABSENT 사유.
+    // v1.5(R5): 결석 사유도 선택 입력 — 비우고 확인해도 결석으로 저장된다. initial로 기존 사유 프리필.
+    function EtcInputSheet({ status, subtitle, initial, onSave, onCancel }) {
+      const [value, setValue] = useState(initial || '');
       const isEtc = status === 'ETC';
-      // 결석(ABSENT)은 사유 입력 필수 (#2). 외부예배(ETC)는 선택.
-      const required = status === 'ABSENT';
-      const title = isEtc ? '외부 예배 입력' : '결석 사유';
+      const title = isEtc ? '외부 예배 입력' : '결석 사유 (선택)';
       const help = isEtc
         ? '다른 곳에서 예배드린 장소나 사유를 입력하세요. 예: 타 교회, 사경회, 수련회'
-        : '결석 사유를 반드시 입력해 주세요. (필수)';
-      const placeholder = isEtc ? '예: 타 교회, 사경회' : '예: 병원, 가족여행';
+        : '필요하면 결석 사유를 입력하세요. 비워두고 확인해도 결석으로 저장됩니다. 예: 병원, 가족여행';
+      const placeholder = isEtc ? '예: 타 교회, 사경회' : '예: 병원, 가족여행 (선택)';
 
-      const trySave = () => {
-        const v = value.trim();
-        if (required && !v) { setError(true); return; }
-        onSave(value);
-      };
+      const trySave = () => { onSave(value); };
 
       useEffect(() => {
         const onKey = (e) => { if (e.key === 'Escape') onCancel(); };
@@ -1834,27 +1859,225 @@
           <div className="sheet" onClick={(e)=>e.stopPropagation()}>
             <div className="sheet-handle"></div>
             <div style={{padding:'4px 20px 20px'}}>
-              <h3 style={{margin:'4px 0 6px',fontSize:17,fontWeight:600}}>
-                {title}{required && <span style={{color:'var(--status-negative)'}}> *</span>}
-              </h3>
+              <h3 style={{margin:'4px 0 6px',fontSize:17,fontWeight:600}}>{title}</h3>
               {subtitle && (
                 <p style={{margin:'0 0 6px',fontSize:13,fontWeight:600,color:'var(--primary)'}}>{subtitle}</p>
               )}
               <p style={{margin:'0 0 12px',fontSize:12,color:'var(--label-alt)',lineHeight:1.45}}>{help}</p>
               <input type="text" autoFocus value={value}
-                onChange={(e) => { setValue(e.target.value); if (error) setError(false); }}
+                onChange={(e) => setValue(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') trySave(); }}
                 placeholder={placeholder}
-                style={{width:'100%',padding:'12px 14px',border:'1.5px solid ' + (error ? 'var(--status-negative)' : 'var(--line-solid)'),borderRadius:10,fontSize:15,fontFamily:'inherit',outline:'none'}} />
-              {error && (
-                <p role="alert" style={{margin:'8px 0 0',fontSize:13,fontWeight:600,color:'var(--status-negative)'}}>
-                  결석 사유를 입력해야 완료됩니다.
-                </p>
-              )}
+                style={{width:'100%',padding:'12px 14px',border:'1.5px solid var(--line-solid)',borderRadius:10,fontSize:15,fontFamily:'inherit',outline:'none'}} />
               <div style={{display:'flex',gap:8,marginTop:14}}>
                 <button className="btn ghost" style={{flex:1}} onClick={onCancel}>취소</button>
                 <button className="btn primary" style={{flex:2}} onClick={trySave}>확인</button>
               </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ──────────────── RosterManageView (명단: 학생 추가·정보 수정) ────────────────
+    // 출석(체크) 흐름과 분리된 명단 관리 전용 화면. 교사가 자기 반에 학생 추가(R1) +
+    // 학생 정보 수정 진입(R2, 출석부 외부). 수정 자체는 StudentDetail의 기존 수정 기능 재사용.
+    function RosterManageView({ idToken, me, toast, onOpenDetail }) {
+      const [students, setStudents] = useState(null);
+      const [loading, setLoading] = useState(true);
+      const [showAdd, setShowAdd] = useState(false);
+
+      const reload = useCallback(() => {
+        setLoading(true);
+        callApi('getRoster', { idToken })
+          .then((r) => {
+            if (r.ok) setStudents(r.students || []);
+            else toast.show('명단 불러오기 실패: ' + (r.code || ''));
+            setLoading(false);
+          })
+          .catch(() => { toast.show('네트워크 오류'); setLoading(false); });
+      }, [idToken, toast.show]);
+
+      useEffect(reload, [reload]);
+
+      if (loading) return <div className="loading">불러오는 중…</div>;
+      const list = students || [];
+      const sorted = [...list].sort((a, b) =>
+        String(a['이름'] || '').localeCompare(String(b['이름'] || ''), 'ko'));
+
+      return (
+        <>
+          <div style={{padding:'12px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+            <div style={{fontSize:14,color:'var(--label-alt)'}}>
+              {me.teacher ? classLabel(me.teacher) : '명단'} · <strong style={{color:'var(--label-normal)'}}>{list.length}명</strong>
+            </div>
+            <button className="btn primary sm" onClick={() => setShowAdd(true)}>＋ 학생 추가</button>
+          </div>
+
+          {list.length === 0 && (
+            <div className="loading" style={{padding:24,lineHeight:1.6}}>
+              아직 등록된 학생이 없습니다.<br />오른쪽 위 ‘＋ 학생 추가’로 시작하세요.
+            </div>
+          )}
+
+          {sorted.map((s) => (
+            <div className="student-card compact" key={s.id}>
+              <div className="student-info">
+                <button className="student-name" onClick={() => onOpenDetail && onOpenDetail(s.id)} style={{textAlign:'left'}}>
+                  {s['이름']}
+                </button>
+                <div className="student-meta">
+                  {s['학년']} · {s['성별']}{s['연락처'] ? ' · ' + s['연락처'] : ''}
+                </div>
+              </div>
+              <div className="student-actions">
+                {(function(){
+                  const ph = String(s['연락처'] || '').replace(/[^0-9+]/g, '');
+                  return ph ? (
+                    <a href={'tel:' + ph} className="pill compact call-pill"
+                      title={'전화: ' + s['연락처']} onClick={(e) => e.stopPropagation()}>📞</a>
+                  ) : null;
+                })()}
+                <button className="btn ghost sm" onClick={() => onOpenDetail && onOpenDetail(s.id)}>정보 · 수정</button>
+              </div>
+            </div>
+          ))}
+
+          {showAdd && (
+            <AddStudentSheet idToken={idToken} me={me} toast={toast}
+              onClose={() => setShowAdd(false)}
+              onSuccess={() => { setShowAdd(false); reload(); }} />
+          )}
+        </>
+      );
+    }
+
+    // ──────────────── AddStudentSheet (교사 자기 반 학생 추가 · R1) ────────────────
+    // NewcomerForm과 같은 폼 패턴. addStudent 액션으로 RAW_CLASS(본인 반)에 기록.
+    function AddStudentSheet({ idToken, me, toast, onClose, onSuccess }) {
+      const [form, setForm] = useState({
+        name: '', gender: '남', phone: '',
+        birthYear: '', birthMonth: '', birthDay: '', grade: '',
+        school: '', parentPhone: '', address: '', note: '',
+      });
+      const [saving, setSaving] = useState(false);
+      const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+      const thisYear = new Date().getFullYear();
+      const birthYears = [];
+      for (let y = thisYear - 8; y >= thisYear - 25; y--) birthYears.push(y);
+      const pad2 = (n) => String(n).padStart(2, '0');
+
+      const submit = () => {
+        if (!form.name.trim()) { toast.show('이름을 입력하세요'); return; }
+        const birthDate = (form.birthYear && form.birthMonth && form.birthDay)
+          ? form.birthYear + '-' + pad2(form.birthMonth) + '-' + pad2(form.birthDay)
+          : '';
+        setSaving(true);
+        callApi('addStudent', {
+          idToken,
+          name: form.name.trim(),
+          gender: form.gender,
+          phone: form.phone,
+          birthDate: birthDate,
+          grade: form.grade,
+          school: form.school,
+          parentPhone: form.parentPhone,
+          address: form.address,
+          note: form.note,
+        })
+          .then((r) => {
+            setSaving(false);
+            if (r.ok) { toast.show('학생이 추가됐습니다'); onSuccess(); }
+            else if (r.code === 'forbidden') toast.show('추가 권한이 없습니다');
+            else toast.show('추가 실패: ' + (r.code || ''));
+          })
+          .catch(() => { setSaving(false); toast.show('네트워크 오류'); });
+      };
+
+      useEffect(() => {
+        const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+      }, [onClose]);
+
+      return (
+        <div className="sheet-overlay" onClick={onClose}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="sheet-handle" />
+            <div className="sheet-header">
+              <h3>학생 추가{me && me.teacher ? ' · ' + classLabel(me.teacher) : ''}</h3>
+              <button className="sheet-close" onClick={onClose}>✕</button>
+            </div>
+            <div className="sheet-body">
+              <div className="form-row">
+                <label className="form-label">이름 *</label>
+                <input className="form-input" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="홍길동" />
+              </div>
+              <div className="form-row">
+                <label className="form-label">성별</label>
+                <div className="radio-group">
+                  {['남','여'].map((g) => (
+                    <label key={g} className="radio-label">
+                      <input type="radio" name="add-gender" value={g} checked={form.gender === g} onChange={() => set('gender', g)} />
+                      {g}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="form-row">
+                <label className="form-label">학년</label>
+                <select className="form-select" value={form.grade} onChange={(e) => set('grade', e.target.value)}>
+                  <option value="">선택</option>
+                  {['중1','중2','중3','고1','고2','고3'].map((g) => <option key={g} value={g}>{g}</option>)}
+                </select>
+              </div>
+              <div className="form-row">
+                <label className="form-label">연락처</label>
+                <input className="form-input" value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="010-0000-0000" />
+              </div>
+              <div className="form-row">
+                <label className="form-label">생년월일</label>
+                <div style={{display:'flex',gap:8}}>
+                  <select className="form-select" style={{flex:1.4}} value={form.birthYear}
+                    onChange={(e) => set('birthYear', e.target.value)} aria-label="출생 연도">
+                    <option value="">연도</option>
+                    {birthYears.map((y) => <option key={y} value={y}>{y}년</option>)}
+                  </select>
+                  <select className="form-select" style={{flex:1}} value={form.birthMonth}
+                    onChange={(e) => set('birthMonth', e.target.value)} aria-label="출생 월">
+                    <option value="">월</option>
+                    {Array.from({length:12},(_,i)=>i+1).map((m) => <option key={m} value={m}>{m}월</option>)}
+                  </select>
+                  <select className="form-select" style={{flex:1}} value={form.birthDay}
+                    onChange={(e) => set('birthDay', e.target.value)} aria-label="출생 일">
+                    <option value="">일</option>
+                    {Array.from({length:31},(_,i)=>i+1).map((d) => <option key={d} value={d}>{d}일</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="form-row">
+                <label className="form-label">학교</label>
+                <input className="form-input" value={form.school} onChange={(e) => set('school', e.target.value)} placeholder="○○중학교" />
+              </div>
+              <div className="form-row">
+                <label className="form-label">부모님 연락처</label>
+                <input className="form-input" value={form.parentPhone} onChange={(e) => set('parentPhone', e.target.value)} placeholder="010-0000-0000" />
+              </div>
+              <div className="form-row">
+                <label className="form-label">주소</label>
+                <input className="form-input" value={form.address} onChange={(e) => set('address', e.target.value)} />
+              </div>
+              <div className="form-row">
+                <label className="form-label">비고</label>
+                <input className="form-input" value={form.note} onChange={(e) => set('note', e.target.value)} />
+              </div>
+            </div>
+            <div className="sheet-footer" style={{display:'flex',gap:8}}>
+              <button className="btn ghost" style={{flex:1}} onClick={onClose} disabled={saving}>취소</button>
+              <button className="btn primary" style={{flex:1}} onClick={submit} disabled={saving}>
+                {saving ? '저장 중…' : '저장'}
+              </button>
             </div>
           </div>
         </div>
@@ -2436,6 +2659,17 @@
           .catch(() => toast.show('네트워크 오류'));
       };
 
+      // 새가족 삭제(soft, active=FALSE) — 중복/오등록 정리(R3). 출석/기도 이력은 보존.
+      const removeNewcomer = (s) => {
+        if (!confirm('‘' + s['이름'] + '’ 님을 새가족부에서 삭제할까요?\n(출석·기도 기록은 보존되며, 목록에서만 제거됩니다.)')) return;
+        callApi('deleteNewcomer', { idToken, studentId: s.id })
+          .then((r) => {
+            if (r.ok) { toast.show('삭제됐습니다'); reload(); }
+            else toast.show('삭제 실패: ' + (r.code || ''));
+          })
+          .catch(() => toast.show('네트워크 오류'));
+      };
+
       if (loading) return <div className="loading">불러오는 중…</div>;
 
       const students = (data && data.students) || [];
@@ -2494,6 +2728,8 @@
                   </div>
                   <button className="btn ghost sm" onClick={() => onOpenDetail && onOpenDetail(s.id)}>정보</button>
                   <button className="btn danger sm" onClick={() => setGraduateTarget(s)}>등반</button>
+                  <button className="btn ghost sm" onClick={() => removeNewcomer(s)} title="새가족부에서 삭제"
+                    style={{color:'var(--status-negative)'}}>삭제</button>
                 </div>
                 <div className="newcomer-card-bottom">
                   <div style={{fontSize:11,color:'var(--label-alt)',fontWeight:600,marginRight:4}}>출석</div>
