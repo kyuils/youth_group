@@ -317,7 +317,15 @@ function copyNewcomerToRawSheet_(studentId, newTeacher) {
     sanitizeCell_(nc['주소']),           // O
     sanitizeCell_(newTeacher),           // P 반=교사명
   ];
-  // 팬텀 행 회피: 이름 컬럼(C)을 위로 스캔해 실제 마지막 데이터 행을 찾는다.
+  appendRawClassRow_(row);
+}
+
+// RAW_CLASS(2026 반편성) 팬텀행 안전 append. getLastRow()가 ArrayFormula 스필로 불안정해서
+// 이름 컬럼(C)을 위로 스캔해 실제 마지막 데이터 행 다음에 기록한다.
+// copyNewcomerToRawSheet_(등반)과 appendStudentToRawSheet_(교사 학생 추가)가 공유 — 두 경로가 어긋나지 않게.
+function appendRawClassRow_(values) {
+  const sh = getSpreadsheet_().getSheetByName(SHEET_NAMES.RAW_CLASS);
+  if (!sh) throw new Error('Sheet not found: ' + SHEET_NAMES.RAW_CLASS);
   const lastMetaRow = sh.getLastRow();
   let lastDataRow = 2;
   if (lastMetaRow >= 3) {
@@ -326,7 +334,33 @@ function copyNewcomerToRawSheet_(studentId, newTeacher) {
       if (String(names[i][0] == null ? '' : names[i][0]).trim() !== '') { lastDataRow = i + 3; break; }
     }
   }
-  sh.getRange(lastDataRow + 1, 1, 1, row.length).setValues([row]);
+  sh.getRange(lastDataRow + 1, 1, 1, values.length).setValues([values]);
+}
+
+// 교사가 자기 반에 일반 학생 추가 (R1). RAW_CLASS 고정 레이아웃으로 행을 만들어 안전 append.
+// B=교사명 / P=반 모두 teacher로 채워 copyNewcomerToRawSheet_와 동일 규약을 따른다.
+function appendStudentToRawSheet_(id, teacher, f) {
+  // A=번호, B=교사명, C=이름, D=출결, E=성별, F=연락처, G=생년월일, H=초등학교,
+  // I=학교, J=학년, K=신급, L=부/모, M=부모님연락처, N=비고, O=주소, P=반
+  const row = [
+    id,                                  // A
+    sanitizeCell_(teacher),              // B 교사명
+    sanitizeCell_(f['이름'] || ''),       // C
+    '',                                  // D 출결
+    sanitizeCell_(f['성별'] || ''),       // E
+    sanitizeCell_(f['연락처'] || ''),     // F
+    sanitizeCell_(f['생년월일'] || ''),   // G
+    '',                                  // H 초등학교
+    sanitizeCell_(f['학교'] || ''),       // I
+    sanitizeCell_(f['학년'] || ''),       // J
+    '',                                  // K 신급
+    '',                                  // L 부/모
+    sanitizeCell_(f['부모님연락처'] || ''), // M
+    sanitizeCell_(f['비고'] || ''),       // N
+    sanitizeCell_(f['주소'] || ''),       // O
+    sanitizeCell_(teacher),              // P 반=교사명
+  ];
+  appendRawClassRow_(row);
 }
 
 // 새가족부 행에 등반반/등반일 기록 (등반 후에도 명단에 남아 배경색으로 구분 — 새가족#4).

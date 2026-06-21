@@ -20,6 +20,9 @@ const ACTIONS = {
   // v1.4 additions
   updateStudent: handleUpdateStudent,
   setGraduationClass: handleSetGraduationClass,
+  // v1.5 additions
+  addStudent: handleAddStudent,
+  deleteNewcomer: handleDeleteNewcomer,
 };
 
 function doPost(e) {
@@ -43,7 +46,7 @@ function doPost(e) {
 
 // Build tag — bumped whenever code is materially changed. Lets us check
 // whether the deployment captured the latest IDE snapshot by hitting GET /exec.
-const BUILD_TAG = 'v1.4.0-newcomer-tab-prayer-answered-student-edit';
+const BUILD_TAG = 'v1.5.0-teacher-add-student-newcomer-dedup-absence-optional';
 
 function doGet(e) {
   // Health check only. The HTML is hosted on GitHub Pages.

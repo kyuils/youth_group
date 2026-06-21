@@ -135,6 +135,56 @@ function migration_v14_prayer_answered() {
   return '기도 응답 컬럼 +' + added;
 }
 
+// ============================================================
+// v1.5 마이그레이션 — 새가족부 중복(orphan) 정리 (R3, 선택)
+//   새가족부에 active=TRUE로 남아있으나 이미 실제 반(반≠새가족)의 학생으로도 존재하고,
+//   '등반일'이 비어있는(=정상 등반 경로가 아닌) 행을 비활성화한다. (예: 윤현성)
+//   ⚠ 가드: 등반일이 있는 정상 등반자는 절대 건드리지 않는다(등반 이력 보존).
+//   참고: 앱의 handleGetNewcomers dedup이 표시는 이미 처리하므로, 이 마이그레이션은
+//        시트 데이터까지 영구 정리하고 싶을 때만 실행하는 선택 사항이다.
+//   IDE에서 a_cleanup_orphan_newcomers 실행 후 로그 확인.
+// ============================================================
+function a_cleanup_orphan_newcomers() {
+  return migration_cleanup_orphan_newcomers();
+}
+
+function migration_cleanup_orphan_newcomers() {
+  const ss = getSpreadsheet_();
+  const sh = ss.getSheetByName(SHEET_NAMES.NEWCOMER);
+  if (!sh) return '새가족부 탭 없음';
+  // 실제 반(반≠새가족)의 활성 학생 id 집합 — STUDENTS 뷰 기준.
+  const realClassIds = {};
+  loadStudentsMin_().forEach((r) => {
+    const c = String(r['반'] || '').trim();
+    if (c !== '' && c !== '새가족' && isActive_(r.active)) realClassIds[String(r.id)] = true;
+  });
+  const last = sh.getLastRow();
+  if (last < 2) return '대상 없음';
+  const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+  const idCol = headers.indexOf('id');
+  const gradDateCol = headers.indexOf('등반일');
+  const activeCol = headers.indexOf('active');
+  const nameCol = headers.indexOf('이름');
+  if (idCol < 0 || activeCol < 0) return 'id/active 컬럼 없음';
+  const vals = sh.getRange(2, 1, last - 1, sh.getLastColumn()).getValues();
+  const names = [];
+  let changed = 0;
+  for (let i = 0; i < vals.length; i++) {
+    const id = String(vals[i][idCol]);
+    const gradDate = gradDateCol >= 0 ? String(vals[i][gradDateCol] || '').trim() : '';
+    const active = isActive_(vals[i][activeCol]);
+    // 가드: (실제 반 학생) AND (등반일 비어있음) AND (현재 활성) 만 비활성화.
+    if (realClassIds[id] && gradDate === '' && active) {
+      sh.getRange(i + 2, activeCol + 1).setValue(false); // 해당 행 active 셀만 수정(다른 컬럼/서식 보존)
+      names.push(nameCol >= 0 ? String(vals[i][nameCol] || id) : id);
+      changed++;
+    }
+  }
+  invalidateCache_(['STUDENTS_MIN_v3']);
+  Logger.log('migration_cleanup_orphan_newcomers: deactivated ' + changed + ' [' + names.join(', ') + ']');
+  return '새가족 중복 정리 ' + changed + '명' + (names.length ? ' (' + names.join(', ') + ')' : '');
+}
+
 function migration_v11_set_roles() {
   const ss = getSpreadsheet_();
   const teachers = ss.getSheetByName(SHEET_NAMES.TEACHERS);

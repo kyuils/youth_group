@@ -391,8 +391,18 @@ function handleGetNewcomers(body) {
     attByStudent[k] = attByStudent[k].slice(0, 12);
   });
 
+  // R3 중복 정리: 같은 id가 이미 실제 반(반≠새가족)의 활성 학생으로 존재하면 활성 새가족 목록에서 제외.
+  //   - 등반자는 graduatedOn으로 이미 제외되므로 영향 없음(이 필터는 등반자-안전).
+  //   - pre-v1.4 새가족은 원본 반='새가족' 행만 있어 제외되지 않음(보호).
+  //   - 윤현성처럼 새가족부+실제반에 동시 존재하는 중복은 배포 즉시 활성 목록에서 사라진다(시트 조작 불필요).
+  const minList = loadStudentsMin_();
+  const realClassIds = new Set(
+    minList
+      .filter((r) => { const c = String(r['반'] || '').trim(); return c !== '' && c !== '새가족' && isActive_(r.active); })
+      .map((r) => String(r.id))
+  );
   // 활성(미등반) vs 등반 완료자 분리. 등반자도 새가족부에 남아 배경색 구분(새가족#4).
-  const students = all.filter((s) => !s.graduatedOn).map((s) => ({
+  const students = all.filter((s) => !s.graduatedOn && !realClassIds.has(String(s.id))).map((s) => ({
     id: String(s.id),
     '이름': s['이름'],
     '학년': s['학년'],
@@ -403,7 +413,7 @@ function handleGetNewcomers(body) {
   }));
   // 등반자는 RAW_CLASS의 현재 학생 레코드에서 이름/학년을 가져온다(정보 수정 즉시 반영).
   const minById = {};
-  loadStudentsMin_().forEach((s) => { minById[String(s.id)] = s; });
+  minList.forEach((s) => { minById[String(s.id)] = s; });
   const graduates = all.filter((s) => s.graduatedOn).map((s) => {
     const live = minById[String(s.id)];
     return {
@@ -632,6 +642,72 @@ function handleUpdateStudent(body) {
       // 등반자: 새가족부 이력 행도 함께 갱신(등반 취소 후에도 정보 일관성 유지).
       if (isNewcomerRecord) updateNewcomerRow_(studentId, clean);
     }
+  } finally { lock.releaseLock(); }
+  if (!ok) return { ok: false, code: 'not_found' };
+  invalidateCache_(['STUDENTS_MIN_v3']);
+  return { ok: true };
+}
+
+// v1.5: 교사가 자기 반에 일반 학생 추가 (R1). 본인 반만, 관리자는 classFilter로 임의 반.
+function handleAddStudent(body) {
+  const auth = authenticate(body);
+  if (!auth.ok) return auth;
+  const isAdmin = hasPerm_(auth, 'read_all');
+  // 새가족부 전담 계정은 일반 학생 추가 대상이 아님(새가족은 addNewcomer 사용).
+  if (!isAdmin && auth.role === 'newcomer_staff') {
+    logForbidden_(auth, 'addStudent', body);
+    return { ok: false, code: 'forbidden' };
+  }
+  // 대상 반: 관리자는 classFilter(없거나 'all'이면 본인 반), 일반 교사는 항상 본인 반.
+  let targetClass = auth.teacher;
+  if (isAdmin && body.classFilter && String(body.classFilter).trim() && String(body.classFilter).trim() !== 'all') {
+    targetClass = String(body.classFilter).trim();
+  }
+  if (!targetClass || !String(targetClass).trim()) {
+    logForbidden_(auth, 'addStudent', body);
+    return { ok: false, code: 'forbidden' };
+  }
+  const name = body.name;
+  if (!name || !String(name).trim()) return { ok: false, code: 'bad_request', message: '이름 필수' };
+  const lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  let newId;
+  try {
+    newId = getNextStudentId_();
+    appendStudentToRawSheet_(newId, String(targetClass).trim(), {
+      '이름': name,
+      '성별': body.gender || '',
+      '학년': body.grade || '',
+      '연락처': body.phone || '',
+      '생년월일': body.birthDate || '',
+      '학교': body.school || '',
+      '부모님연락처': body.parentPhone || '',
+      '주소': body.address || '',
+      '비고': body.note || '',
+    });
+  } finally { lock.releaseLock(); }
+  // ArrayFormula 뷰(STUDENTS) 재계산을 위해 캐시 무효화 — 등반 흐름과 동일 패턴.
+  invalidateCache_(['STUDENTS_MIN_v3', 'ATT_IDX_v1']);
+  return { ok: true, studentId: String(newId), teacher: String(targetClass).trim() };
+}
+
+// v1.5: 새가족 삭제(soft) — 새가족부 active=FALSE (R3). 출석/기도 이력은 보존, 목록에서만 제거.
+function handleDeleteNewcomer(body) {
+  const auth = authenticate(body);
+  if (!auth.ok) return auth;
+  if (!hasPerm_(auth, 'write_newcomer') && !hasPerm_(auth, 'read_all')) {
+    logForbidden_(auth, 'deleteNewcomer', body);
+    return { ok: false, code: 'forbidden' };
+  }
+  const { studentId } = body;
+  if (!studentId) return { ok: false, code: 'bad_request' };
+  const nc = readNewcomerTab_().find((r) => String(r.id) === String(studentId));
+  if (!nc) return { ok: false, code: 'not_found', message: '새가족부에 없는 학생입니다' };
+  const lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  let ok;
+  try {
+    ok = updateNewcomerRow_(studentId, { active: false });
   } finally { lock.releaseLock(); }
   if (!ok) return { ok: false, code: 'not_found' };
   invalidateCache_(['STUDENTS_MIN_v3']);
