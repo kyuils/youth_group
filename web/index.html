@@ -2324,6 +2324,9 @@
       const dates = Array.from(new Set(data.rows.map((r) => r.date)));
       if (dates.length === 0) return <div className="loading">올해 출석 기록이 아직 없습니다.</div>;
 
+      // 주별 출석 인원 추이(최근 12주) — 내 반 출석 인원 선형 그래프
+      const weeklyPts = weeklyPresentPoints(data.rows, 12);
+
       // 학생별 출석률 계산
       const total = dates.length;
       const perStudent = data.students.map(function(s){
@@ -2359,6 +2362,12 @@
 
       return (
         <>
+          {/* 내 반 주별 출석 인원 추이 (선형 그래프) */}
+          <div className="admin-section">
+            <h4>주별 출석 인원 <span style={{fontWeight:400,fontSize:12,color:'var(--label-alt)'}}>(최근 {weeklyPts.length}주)</span></h4>
+            <LineChart points={weeklyPts} />
+          </div>
+
           {/* 반 요약 카드 */}
           <div className="stats-summary">
             <div className="stats-summary-title">올해 반 평균 출석률</div>
@@ -3071,6 +3080,42 @@
     }
 
     // ──────────────── AdminView ────────────────
+    // ── 반별 출석 집계 (studentId → 현재 반 매핑 기준) ──
+    // 출석시트 '반'(=teacher) 컬럼은 마이그레이션/수동편집으로 표기·공백이 어긋날 수
+    // 있어 직접 매칭하면 반별 통계가 0이 된다(증상: 모든 반 0%). 학년별 통계와 동일하게
+    // studentId로 학생의 '현재 반'을 찾아 귀속시키면 teacher 표기에 무관하게 견고하다.
+    function classOfStudentMap(byClass) {
+      const map = {};
+      Object.keys(byClass).forEach(function(cls){
+        (byClass[cls] || []).forEach(function(s){ map[String(s.id)] = cls; });
+      });
+      return map;
+    }
+    // 반별 그룹 통계: [{name, count, present, total, latest, pct}] (이름 가나다순)
+    function computeClassGroups(byClass, presentRows, totalDates, latestDate) {
+      const classOf = classOfStudentMap(byClass);
+      return Object.keys(byClass)
+        .map(function(cls){
+          const students = byClass[cls] || [];
+          if (students.length === 0) return null;
+          const present = presentRows.filter(function(r){ return classOf[String(r.studentId)] === cls; }).length;
+          const total = students.length * totalDates;
+          const latest = presentRows.filter(function(r){ return classOf[String(r.studentId)] === cls && r.date === latestDate; }).length;
+          return { name: cls, count: students.length, present: present, total: total, latest: latest,
+                   pct: total > 0 ? Math.min(100, Math.round((present / total) * 100)) : 0 };
+        })
+        .filter(Boolean)
+        .sort(function(a,b){ return a.name.localeCompare(b.name, 'ko'); });
+    }
+    // 주별 출석 인원 추이 — rows에서 날짜별 출석(PRESENT_CODES) 인원, 최근 n주.
+    function weeklyPresentPoints(rows, n) {
+      const dates = Array.from(new Set(rows.map(function(r){ return r.date; }))).sort();
+      return dates.slice(-n).map(function(d){
+        return { label: Number(d.slice(5,7)) + '/' + Number(d.slice(8,10)),
+                 value: rows.filter(function(r){ return r.date === d && PRESENT_CODES.indexOf(r.status) >= 0; }).length };
+      });
+    }
+
     // 간단한 SVG 선형 그래프 — points: [{label, value}]
     function LineChart({ points, color }) {
       if (!points || points.length === 0) return <div className="weekly-empty">데이터가 없습니다</div>;
@@ -3166,19 +3211,9 @@
       });
       const stackMax = Math.max.apply(null, stackData.map(function(x){ return x.total; }).concat([1]));
 
-      // 반별: 기록 당시의 반(row.teacher) 기준. 분모는 현재 인원 × 예배 횟수 (100% 캡). #6 타일
-      const classGroups = classNames
-        .map(function(cls){
-          const students = byClass[cls] || [];
-          if (students.length === 0) return null;
-          const present = presentRows.filter(function(r){ return r.teacher === cls; }).length;
-          const total = students.length * totalDates;
-          const latest = presentRows.filter(function(r){ return r.teacher === cls && r.date === latestDate; }).length;
-          return { name: cls, count: students.length, present: present, total: total, latest: latest,
-                   pct: total > 0 ? Math.min(100, Math.round((present / total) * 100)) : 0 };
-        })
-        .filter(Boolean)
-        .sort(function(a,b){ return a.name.localeCompare(b.name, 'ko'); });
+      // 반별: 학생의 '현재 반'(studentId 매핑) 기준. 분모는 현재 인원 × 예배 횟수 (100% 캡). #6 타일
+      // (구현: row.teacher 직접 매칭은 표기/공백 어긋남에 취약해 studentId 매핑으로 대체)
+      const classGroups = computeClassGroups(byClass, presentRows, totalDates, latestDate);
 
       // 학년별 통계
       const gradeGroups = gradeNames.map(function(g){
@@ -3193,8 +3228,13 @@
 
       // 결석 사유 (최근 주일 기준) — #3. 반별 그룹. getAllAttendance는 studentName/etcText 포함.
       const absRows = attRows.filter(function(r){ return r.status === 'ABSENT' && r.date === latestDate; });
+      const classOfAbs = classOfStudentMap(byClass);
       const absByClass = {};
-      absRows.forEach(function(r){ (absByClass[r.teacher] = absByClass[r.teacher] || []).push(r); });
+      absRows.forEach(function(r){
+        const cls = classOfAbs[String(r.studentId)];
+        if (!cls) return; // 현재 명단에 없는 학생(이동/졸업)은 반별 결석사유에서 제외
+        (absByClass[cls] = absByClass[cls] || []).push(r);
+      });
       const absClasses = Object.keys(absByClass).sort(function(a,b){ return a.localeCompare(b, 'ko'); });
 
       return (
