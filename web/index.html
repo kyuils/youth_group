@@ -710,7 +710,9 @@
     /* 반별 통계 타일 (#6: 한 줄에 3개) */
     .tile-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:4px 0 4px}
     .stat-tile{border:1px solid var(--line-solid);border-radius:14px;padding:10px 8px;text-align:center;
-      background:var(--bg);min-width:0}
+      background:var(--bg);min-width:0;color:inherit;font-family:inherit}
+    button.stat-tile{cursor:pointer}
+    button.stat-tile.active{border-color:var(--primary);box-shadow:0 0 0 2px color-mix(in srgb, var(--primary) 16%, transparent)}
     .stat-tile .tname{font-size:12px;font-weight:700;color:var(--label-normal);
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .stat-tile .tpct{font-size:22px;font-weight:800;color:var(--primary);line-height:1.1;margin:2px 0}
@@ -724,6 +726,21 @@
     .svc-track{flex:1;height:18px;background:var(--fill-normal);border-radius:9px;overflow:hidden}
     .svc-fill{height:100%;border-radius:9px;min-width:2px;transition:width 240ms ease}
     .svc-num{width:44px;text-align:right;font-size:13px;font-weight:700;color:var(--label-normal);flex-shrink:0}
+    .kpi-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:10px}
+    .kpi-chip{border:1px solid var(--line-solid);border-radius:12px;padding:8px 10px;background:var(--bg)}
+    .kpi-chip .klabel{font-size:11px;color:var(--label-alt);font-weight:700}
+    .kpi-chip .kval{font-size:19px;color:var(--label-normal);font-weight:800;line-height:1.15;margin-top:2px}
+    .class-detail-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+    .class-detail-head h4{flex:1;margin:0}
+    .status-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--fill-normal);font-size:14px}
+    .status-row .sname{flex:1;font-weight:600;color:var(--label-normal)}
+    .status-row .smeta{font-size:12px;color:var(--label-alt)}
+    .status-row .sbadge{font-size:12px;font-weight:800;border-radius:999px;padding:4px 8px;background:var(--fill-normal);color:var(--label-alt)}
+    .status-row .sbadge.P2{background:color-mix(in srgb, var(--att-p2) 14%, transparent);color:var(--att-p2-fg)}
+    .status-row .sbadge.P3{background:color-mix(in srgb, var(--att-p3) 14%, transparent);color:var(--att-p3-fg)}
+    .status-row .sbadge.P4{background:color-mix(in srgb, var(--att-p4) 14%, transparent);color:var(--att-p4-fg)}
+    .status-row .sbadge.ETC{background:color-mix(in srgb, var(--att-etc) 14%, transparent);color:var(--att-etc-fg)}
+    .status-row .sbadge.ABSENT{background:color-mix(in srgb, var(--att-absent) 14%, transparent);color:var(--att-absent-fg)}
     /* 주별 학년별 누적 막대 (#4) */
     .gradestack{display:flex;align-items:flex-end;gap:6px;padding:8px 2px 0;height:150px}
     .gs-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0;height:100%;justify-content:flex-end}
@@ -790,8 +807,10 @@
       OAUTH_CLIENT_ID: '90527666620-pv68hai4j0rfqa94hsubrs2pe3afgril.apps.googleusercontent.com',
     };
   </script>
+  <script src="./admin-stats-utils.js"></script>
   <script type="text/babel" data-presets="env,react" data-type="module">
     const { useState, useEffect, useCallback, useMemo, useRef } = React;
+    const AdminStatsUtils = window.AdminStatsUtils;
 
     // ──────────────── API client ────────────────
     // 클라이언트 읽기 캐시 — 탭 전환 시 재요청을 막아 즉시 화면 전환 (M1).
@@ -987,6 +1006,14 @@
       if (diff >= 14 && diff < 60) return Math.floor(diff / 7) + '주 전';
       if (diff < 0) return dateOnly; // future → show absolute
       return dateOnly;
+    }
+
+    function prayerDateLabel(iso) {
+      if (!iso) return '';
+      const dateOnly = String(iso).slice(0, 10);
+      const rel = relativeDate(iso);
+      if (!dateOnly || rel === dateOnly) return dateOnly || rel;
+      return dateOnly + ' · ' + rel;
     }
 
     const STATUS_OPTIONS = [
@@ -2166,7 +2193,7 @@
                   <div style={{flex:1}}>
                     <div className="prayer-text" style={{whiteSpace:'pre-wrap'}}>{p.text}</div>
                     <div className="prayer-meta">
-                      {p.createdAt && <span title={p.createdAt}>{relativeDate(p.createdAt)}</span>}
+                      {p.createdAt && <span title={p.createdAt}>작성일 {prayerDateLabel(p.createdAt)}</span>}
                       {p.answered && (
                         <span style={{color:'var(--status-positive)',marginLeft:6,fontWeight:700}}>
                           · 응답됨{p.answeredOn ? ' ' + p.answeredOn : ''}
@@ -3145,7 +3172,9 @@
 
     // 관리자 통계: 전체 요약 + 주차별/월별 합계(선형) + 예배별 + 주별 학년별 + 반별 타일
     //              + 학년별 + 결석사유 + 교사 출석현황 (올해 고정, 클라이언트 집계)
-    function AdminStats({ byClass, attRows }) {
+    function AdminStats({ byClass, attRows, newcomers }) {
+      const [selectedDate, setSelectedDate] = useState('');
+      const [selectedClass, setSelectedClass] = useState('');
       const classNames = Object.keys(byClass);
       const allStudents = classNames.reduce(function(acc, c){ return acc.concat(byClass[c] || []); }, []);
       const dates = Array.from(new Set(attRows.map(function(r){ return r.date; }))).sort();
@@ -3160,8 +3189,11 @@
       const overallTotal = allStudents.length * totalDates;
       const overallPct = Math.min(100, Math.round((presentRows.length / overallTotal) * 100));
       const latestDate = dates[dates.length - 1];
-      const latestPresent = presentRows.filter(function(r){ return r.date === latestDate; }).length;
-      const latestPct = Math.min(100, Math.round((latestPresent / allStudents.length) * 100));
+      const activeDate = selectedDate || recentSunday();
+      const weekSnapshot = AdminStatsUtils.buildAdminWeekSnapshot({ byClass, attRows, selectedDate: activeDate, defaultDate: recentSunday() });
+      const weekOverall = weekSnapshot.overall;
+      const year = String(new Date().getFullYear());
+      const newcomerKpis = AdminStatsUtils.buildNewcomerKpis(newcomers || {}, year);
 
       // 주차별 출석 합계 (최근 12주) — #1 / 주별 선형 그래프
       const trendDates = dates.slice(-12);
@@ -3211,10 +3243,6 @@
       });
       const stackMax = Math.max.apply(null, stackData.map(function(x){ return x.total; }).concat([1]));
 
-      // 반별: 학생의 '현재 반'(studentId 매핑) 기준. 분모는 현재 인원 × 예배 횟수 (100% 캡). #6 타일
-      // (구현: row.teacher 직접 매칭은 표기/공백 어긋남에 취약해 studentId 매핑으로 대체)
-      const classGroups = computeClassGroups(byClass, presentRows, totalDates, latestDate);
-
       // 학년별 통계
       const gradeGroups = gradeNames.map(function(g){
         const members = allStudents.filter(function(s){ return gradeOf[String(s.id)] === g; });
@@ -3227,7 +3255,7 @@
       });
 
       // 결석 사유 (최근 주일 기준) — #3. 반별 그룹. getAllAttendance는 studentName/etcText 포함.
-      const absRows = attRows.filter(function(r){ return r.status === 'ABSENT' && r.date === latestDate; });
+      const absRows = attRows.filter(function(r){ return r.status === 'ABSENT' && r.date === weekSnapshot.date; });
       const classOfAbs = classOfStudentMap(byClass);
       const absByClass = {};
       absRows.forEach(function(r){
@@ -3236,17 +3264,88 @@
         (absByClass[cls] = absByClass[cls] || []).push(r);
       });
       const absClasses = Object.keys(absByClass).sort(function(a,b){ return a.localeCompare(b, 'ko'); });
+      const detailClass = selectedClass && byClass[selectedClass] ? selectedClass : '';
+      const detailTrend = detailClass
+        ? AdminStatsUtils.buildClassTrendPoints({ className: detailClass, byClass, attRows, count: 12 })
+        : [];
+      const detailStudents = detailClass
+        ? AdminStatsUtils.buildClassStudentStatuses({ className: detailClass, byClass, attRows, selectedDate: weekSnapshot.date })
+        : [];
 
       return (
         <>
           <div className="stats-summary">
-            <div className="stats-summary-title">올해 전체 평균 출석률</div>
+            <div className="stats-summary-title">선택 주일 전체 현황</div>
             <div className="stats-summary-row">
-              <span className="big">{overallPct}%</span>
-              <span className="sub">({totalDates}회 예배 · 학생 {allStudents.length}명)</span>
+              <span className="big">{weekOverall.present}<span style={{fontSize:14}}>명</span></span>
+              <span className="sub">/ 재적 {weekOverall.enrolled}명 · 출석률 {weekOverall.pct}%</span>
             </div>
             <div className="stats-summary-meta">
-              최근 예배({latestDate}): <strong>{latestPresent}/{allStudents.length}명</strong> 출석 · {latestPct}%
+              기준일 <strong>{weekSnapshot.date}</strong>
+              {' · '}기타 <strong>{weekOverall.etc}명</strong>
+              {' · '}결석 <strong style={{color:'var(--status-negative)'}}>{weekOverall.absent}명</strong>
+              {' · '}미체크 <strong>{weekOverall.unmarked}명</strong>
+            </div>
+            <div className="kpi-grid">
+              <div className="kpi-chip"><div className="klabel">전체 재적</div><div className="kval">{weekOverall.enrolled}명</div></div>
+              <div className="kpi-chip"><div className="klabel">이번 주 입력</div><div className="kval">{weekOverall.marked}명</div></div>
+              <div className="kpi-chip"><div className="klabel">새가족 누적 등록</div><div className="kval">{newcomerKpis.registeredTotal}명</div></div>
+              <div className="kpi-chip"><div className="klabel">등반 누계</div><div className="kval">{newcomerKpis.graduatedTotal}명</div></div>
+              <div className="kpi-chip"><div className="klabel">현재 새가족부</div><div className="kval">{newcomerKpis.current}명</div></div>
+              <div className="kpi-chip"><div className="klabel">올해 등반</div><div className="kval">{newcomerKpis.graduatedThisYear}명</div></div>
+            </div>
+          </div>
+
+          <WeekStepper sunday={weekSnapshot.date} onChange={setSelectedDate} />
+
+          <div className="admin-section">
+            <h4>반별 이번 주 현황 <span style={{fontWeight:400,fontSize:12,color:'var(--label-alt)'}}>(반 클릭 시 추이 확인)</span></h4>
+            <div className="tile-grid">
+              {weekSnapshot.classes.map(function(g){
+                const active = selectedClass === g.name;
+                return (
+                  <button type="button" key={g.name} className={'stat-tile' + (active ? ' active' : '')}
+                    title={classLabel(g.name) + ' · 출석 ' + g.present + '/' + g.enrolled + '명'}
+                    onClick={() => setSelectedClass(active ? '' : g.name)}>
+                    <div className="tname">{classLabel(g.name)}</div>
+                    <div className="tpct">{g.present}/{g.enrolled}</div>
+                    <div className="tmeta">결석 {g.absent} · 미체크 {g.unmarked}</div>
+                    <div className="ttrack"><div className="tfill" style={{width: Math.max(2, g.pct) + '%'}}></div></div>
+                  </button>
+                );
+              })}
+            </div>
+            {weekSnapshot.classes.length === 0 && <div style={{fontSize:14,color:'var(--label-alt)'}}>데이터가 없습니다.</div>}
+          </div>
+
+          {detailClass && (
+            <div className="admin-section">
+              <div className="class-detail-head">
+                <h4>{classLabel(detailClass)} 출석 추이</h4>
+                <button className="btn ghost sm" onClick={() => setSelectedClass('')}>닫기</button>
+              </div>
+              <LineChart points={detailTrend} />
+              <div style={{marginTop:10}}>
+                {detailStudents.map(function(s){
+                  return (
+                    <div key={s.id} className="status-row">
+                      <span className="sname">{s.name}<span className="smeta"> · {s.grade}</span></span>
+                      <span className={'sbadge ' + s.status}>{s.label}</span>
+                      {s.etcText && <span className="smeta">{s.etcText}</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="admin-section">
+            <h4>올해 전체 평균 출석률</h4>
+            <div className="stats-summary" style={{margin:'0',border:'none',boxShadow:'none'}}>
+              <div className="stats-summary-row">
+                <span className="big">{overallPct}%</span>
+                <span className="sub">({totalDates}회 예배 · 학생 {allStudents.length}명)</span>
+              </div>
             </div>
           </div>
 
@@ -3310,25 +3409,8 @@
           </div>
 
           <div className="admin-section">
-            <h4>반별 통계</h4>
-            <div className="tile-grid">
-              {classGroups.map(function(g){
-                return (
-                  <div key={g.name} className="stat-tile" title={classLabel(g.name) + ' · ' + g.present + '/' + g.total + '회'}>
-                    <div className="tname">{g.name}</div>
-                    <div className="tpct">{g.pct}%</div>
-                    <div className="tmeta">{g.count}명 · 최근 {g.latest}</div>
-                    <div className="ttrack"><div className="tfill" style={{width: Math.max(2, g.pct) + '%'}}></div></div>
-                  </div>
-                );
-              })}
-            </div>
-            {classGroups.length === 0 && <div style={{fontSize:14,color:'var(--label-alt)'}}>데이터가 없습니다.</div>}
-          </div>
-
-          <div className="admin-section">
-            <h4>결석 사유 <span style={{fontWeight:400,fontSize:12,color:'var(--label-alt)'}}>(최근 주일 {latestDate})</span></h4>
-            {absClasses.length === 0 && <div style={{fontSize:14,color:'var(--label-alt)'}}>최근 주일 결석자가 없습니다 🎉</div>}
+            <h4>결석 사유 <span style={{fontWeight:400,fontSize:12,color:'var(--label-alt)'}}>(선택 주일 {weekSnapshot.date})</span></h4>
+            {absClasses.length === 0 && <div style={{fontSize:14,color:'var(--label-alt)'}}>선택 주일 결석자가 없습니다 🎉</div>}
             {absClasses.map(function(cls){
               return (
                 <div key={cls} style={{marginBottom:10}}>
@@ -3344,21 +3426,6 @@
                 </div>
               );
             })}
-          </div>
-
-          <div className="admin-section">
-            <h4>교사 출석현황</h4>
-            {classGroups.map(function(g){
-              return (
-                <div key={g.name} className="tch-row">
-                  <span className="tch-name">{classLabel(g.name)}</span>
-                  <span className="tch-cell">{g.count}명</span>
-                  <span className="tch-cell">최근 {g.latest}</span>
-                  <span className="tch-pct">{g.pct}%</span>
-                </div>
-              );
-            })}
-            {classGroups.length === 0 && <div style={{fontSize:14,color:'var(--label-alt)'}}>데이터가 없습니다.</div>}
           </div>
 
           <GroupStatSection title="학년별 통계" groups={gradeGroups} />
@@ -3512,15 +3579,20 @@
               const clsPrayers = prayerList.filter((p) => studentClass[p.studentId] === cls);
               if (clsPrayers.length === 0) return null;
               return (
-                <div key={cls} style={{marginBottom:12}}>
-                  <div className="class-group-head">{classLabel(cls)}</div>
-                  {clsPrayers.map((p) => (
-                    <div key={p.id} style={{padding:'6px 0',borderBottom:'1px solid var(--fill-normal)',fontSize:14}}>
-                      <span style={{fontWeight:500}}>{p.studentName || p.studentId}</span>
-                      <span style={{color:'var(--label-alt)',marginLeft:8}}>— {p.text}</span>
-                    </div>
-                  ))}
-                </div>
+                  <div key={cls} style={{marginBottom:12}}>
+                    <div className="class-group-head">{classLabel(cls)}</div>
+                    {clsPrayers.map((p) => (
+                      <div key={p.id} style={{padding:'6px 0',borderBottom:'1px solid var(--fill-normal)',fontSize:14}}>
+                        <div>
+                          <span style={{fontWeight:500}}>{p.studentName || p.studentId}</span>
+                          <span style={{color:'var(--label-alt)',marginLeft:8}}>— {p.text}</span>
+                        </div>
+                        {p.createdAt && (
+                          <div className="prayer-meta" title={p.createdAt}>작성일 {prayerDateLabel(p.createdAt)}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
               );
             })}
             {prayerList.length === 0 && <div style={{fontSize:14,color:'var(--label-alt)'}}>기도제목이 없습니다.</div>}
@@ -3568,7 +3640,7 @@
             <button className={seg === 'newcomer' ? 'active' : ''} onClick={() => setSeg('newcomer')}>새가족·등반</button>
             <button className={seg === 'roster' ? 'active' : ''} onClick={() => setSeg('roster')}>명단·기도</button>
           </div>
-          {seg === 'stats' && <AdminStats byClass={byClass} attRows={attRows} />}
+          {seg === 'stats' && <AdminStats byClass={byClass} attRows={attRows} newcomers={newcomers} />}
           {seg === 'newcomer' && <AdminNewcomerStatus attRows={attRows} newcomers={newcomers} />}
           {seg === 'roster' && (
             <AdminRosterPrayers byClass={byClass} allPrayers={allPrayers}
